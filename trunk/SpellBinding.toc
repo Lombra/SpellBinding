@@ -1,0 +1,15 @@
+## Interface: 50300
+## Title: SpellBinding
+## Version: 1.0.0
+## Notes: Powerful keybinding tool.
+## Author: Lombra
+## SavedVariables: SpellBindingDB
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\AceDB-3.0\AceDB-3.0.lua
+Libs\LibDualSpec-1.0\LibDualSpec-1.0.lua
+
+Libs\AceDBUI.lua
+
+Core.lua
