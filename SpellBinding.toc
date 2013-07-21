@@ -4,6 +4,7 @@
 ## Notes: Powerful keybinding tool.
 ## Author: Lombra
 ## SavedVariables: SpellBindingDB
+## SavedVariablesPerCharacter: SpellBindingPerCharDB
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
@@ -14,4 +15,6 @@ Libs\AceDBUI.lua
 
 Core.lua
 Bindings.lua
+Scoping.lua
+Custom.lua
 Options.lua

@@ -33,6 +33,22 @@ SLASH_SPELLBINDING2 = "/sb"
 BINDING_HEADER_SPELLBINDING = "SpellBinding"
 BINDING_NAME_SPELLBINDING_TOGGLE = "Toggle SpellBinding frame"
 
+local combatBlock = CreateFrame("Frame", nil, frame)
+combatBlock:SetAllPoints()
+combatBlock:EnableMouse(true)
+-- combatBlock:SetToplevel(true)
+combatBlock:SetFrameStrata("HIGH")
+combatBlock:Hide()
+combatBlock:SetBackdrop({
+	bgFile = [[Interface\Buttons\WHITE8X8]],
+	insets = {left = 4, right = 4, top = 21, bottom = 4}
+})
+combatBlock:SetBackdropColor(0, 0, 0, 0.7)
+
+local info = combatBlock:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge", 1)
+info:SetPoint("CENTER")
+info:SetText("Keybinding blocked during combat")
+
 local tabs = {}
 
 local function onClick(self)
@@ -112,6 +128,7 @@ local scopeLabels = {
 	factionrealm = "Faction - realm",
 	global = "Global",
 	profile = "Profile",
+	percharprofile = "Profile (per char)",
 }
 
 local defaults = {}
@@ -127,12 +144,33 @@ defaults.global.scopes = {
 	"global",
 }
 
+-- insert after so it doesn't get included in defaults since it's not a real datatype
+tinsert(scopes, "percharprofile")
+
+local percharDefaults = {
+	profile = {
+		actions = {},
+		bindings = {},
+	}
+}
+
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("UPDATE_BINDINGS")
+frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:SetScript("OnEvent", function(self, event, ...)
 	addon[event](addon, ...)
 end)
+
+local db = setmetatable({}, {
+	__index = function(table, key)
+		if key == "percharprofile" then
+			return addon.perchardb.profile
+		end
+		return addon.db[key]
+	end
+})
 
 function addon:ADDON_LOADED(addon)
 	if addon ~= addonName then
@@ -145,7 +183,19 @@ function addon:ADDON_LOADED(addon)
 	self.db.RegisterCallback(self, "OnProfileCopied", "RefreshConfig")
 	self.db.RegisterCallback(self, "OnProfileReset", "RefreshConfig")
 	
-	LibStub("LibDualSpec-1.0"):EnhanceDatabase(self.db, "SpellBinding")
+	self.perchardb = LibStub("AceDB-3.0"):New("SpellBindingPerCharDB", percharDefaults)
+	
+	self.perchardb.RegisterCallback(self, "OnProfileChanged", "RefreshConfig")
+	self.perchardb.RegisterCallback(self, "OnProfileCopied", "RefreshConfig")
+	self.perchardb.RegisterCallback(self, "OnProfileReset", "RefreshConfig")
+	
+	LibStub("LibDualSpec-1.0"):EnhanceDatabase(self.perchardb, "SpellBinding")
+	
+	-- self.scopes = db
+	
+	AceDBUI:CreateUI(addonName.."a", self.perchardb, modules["Options"])
+	
+	self.db.percharprofile = self.perchardb.profile
 	
 	self:UpdateScopeMenus()
 	
@@ -161,7 +211,16 @@ function addon:PLAYER_LOGIN()
 	self:Update()
 end
 
+function addon:PLAYER_REGEN_DISABLED()
+	combatBlock:Show()
+end
+
+function addon:PLAYER_REGEN_ENABLED()
+	combatBlock:Hide()
+end
+
 function addon:RefreshConfig()
+	self.db.percharprofile = self.perchardb.profile
 	self:UpdateScopeMenus()
 	self:ApplyBindings()
 	self:Update()
@@ -175,19 +234,10 @@ function addon:IsScopeUsed(scope)
 	end
 end
 
-function addon:UPDATE_BINDINGS()
-	for i = 1, NUM_BUTTONS do
-		local button = buttons[i]
-		button.hotKey:SetText(i)
-		local binding = GetBindingByKey("F"..i)
-		button.name:SetText(GetSpellInfo((select(2, GetActionInfo(i)))))
-		button.icon:SetTexture(GetActionTexture(i))
-	end
-end
-
 function addon:ApplyBindings()
+	ClearOverrideBindings(frame)
 	for i, v in ipairs(self.db.global.scopes) do
-		for key, command in pairs(self.db[v].bindings) do
+		for key, command in pairs(self:GetBindings(v)) do
 			SetOverrideBinding(frame, nil, key, command:gsub("(%d+)$", GetSpellInfo))
 		end
 	end
@@ -200,7 +250,7 @@ end
 
 function addon:GetBindingKey(action2)
 	for i = #self.db.global.scopes, 1, -1 do
-		for key, action in pairs(self.db[self.db.global.scopes[i]].bindings) do
+		for key, action in pairs(self:GetBindings(self.db.global.scopes[i])) do
 			if action == action2 then
 				return key
 			end
@@ -233,7 +283,7 @@ function addon:GetActionName(binding)
 	if get then
 		return get(data)
 	else
-		getName["COMMAND"](binding)
+		return getName["COMMAND"](binding)
 	end
 end
 
@@ -259,54 +309,10 @@ function addon:GetScopeLabel(scope)
 	return scopeLabels[scope]
 end
 
-
-do return end
-local Naga = addon:NewModule("Naga")
-
-local function createButton()
-	local button = CreateFrame("CheckButton", nil, Naga)
-	button:SetSize(36, 36)
-	
-	button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
-	button.name:SetSize(36, 10)
-	button.name:SetPoint("BOTTOM", 0, 2)
-	
-	local icon = button:CreateTexture()
-	icon:SetSize(36, 36)
-	icon:SetPoint("CENTER", 0, -1)
-	button.icon = icon
-	button:SetNormalTexture(icon)
-	button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
-	button:SetCheckedTexture([[Interface\Buttons\CheckButtonHilight]])
-	
-	local bg = button:CreateTexture(nil, "BACKGROUND")
-	bg:SetSize(45, 45)
-	bg:SetPoint("CENTER", 0, -1)
-	bg:SetTexture([[Interface\Buttons\UI-EmptySlot-Disabled]])
-	bg:SetTexCoord(0.140625, 0.84375, 0.140625, 0.84375)
-	
-	button.hotKey = button:CreateFontString(nil, nil, "NumberFontNormalSmallGray")--, 2)
-	button.hotKey:SetSize(36, 10)
-	button.hotKey:SetPoint("TOPLEFT", 1, -3)
-	button.hotKey:SetJustifyH("RIGHT")
-	
-	return button
+function addon:GetActions(scope)
+	return self.db[scope].actions
 end
 
-local NUM_BUTTONS = 12
-local GRID_WIDTH = 3
-
-local buttons = {}
-
-for i = 1, NUM_BUTTONS do
-	local button = createButton()
-	-- button:SetID(i)
-	if i == 1 then
-		button:SetPoint("TOPLEFT", 18, -72)
-	elseif i % GRID_WIDTH == 1 then
-		button:SetPoint("TOP", buttons[i - GRID_WIDTH], "BOTTOM", 0, -8)
-	else
-		button:SetPoint("LEFT", buttons[i - 1], "RIGHT", 10, 0)
-	end
-	buttons[i] = button
+function addon:GetBindings(scope)
+	return self.db[scope].bindings
 end

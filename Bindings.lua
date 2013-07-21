@@ -21,17 +21,19 @@ local scopeLabels = {
 	profile = "Profile",
 }
 
-local function dropAction()
-	local type, data, subType, subData = GetCursorInfo()
-	if type == "item" then
-		addon.db.global.actions["ITEM item:"..data] = true
-	elseif type == "spell" then
-		addon.db.global.actions["SPELL "..subData] = true
-	elseif type == "macro" then
-		addon.db.global.actions["MACRO "..GetMacroInfo(data)] = true
+local function dropAction(self, button)
+	if button == "LeftButton" or not button then
+		local type, data, subType, subData = GetCursorInfo()
+		if type == "item" then
+			addon.db.global.actions["ITEM item:"..data] = true
+		elseif type == "spell" then
+			addon.db.global.actions["SPELL "..subData] = true
+		elseif type == "macro" then
+			addon.db.global.actions["MACRO "..GetMacroInfo(data)] = true
+		end
+		addon:Update()
 	end
 	ClearCursor()
-	addon:Update()
 	-- print(type, data, subType, subData)
 end
 
@@ -190,7 +192,7 @@ local info = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
 info:SetPoint("CENTER", 0, 24)
 info:SetText("Press a key to bind")
 
-overlay.actionName = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge", 1)
+overlay.actionName = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 overlay.actionName:SetPoint("CENTER")
 
 overlay.key = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
@@ -227,14 +229,15 @@ OK:SetWidth(80)
 OK:SetText(ACCEPT)
 OK:SetScript("OnClick", function()
 	SetOverrideBinding(Bindings, nil, currentKey, currentAction:gsub("(%d+)$", GetSpellInfo))
-	addon.db[currentScope].actions[currentAction] = true
-	addon.db[currentScope].bindings[currentKey] = currentAction
+	addon:GetActions(currentScope)[currentAction] = true
+	addon:GetBindings(currentScope)[currentKey] = currentAction
 	overlay:Hide()
 	addon:Update()
+	addon:UpdateCustomBindings()
 end)
 
 do
-	local BUTTON_HEIGHT = 18
+	local BUTTON_HEIGHT = 24
 	local BUTTON_OFFSET = 2
 	
 	local options = {
@@ -275,9 +278,14 @@ do
 	end
 	
 	local function onClick(self, button)
+		if GetCursorInfo() then
+			dropAction(self, button)
+			return
+		end
 		if button == "LeftButton" then
 			currentAction = self.binding
 			currentScope = self.scope or "global"
+			UIDropDownMenu_SetText(scope, addon:GetScopeLabel(currentScope))
 			overlay:Show()
 		else
 			ToggleDropDownMenu(nil, self.binding, menu, self, 0, 0)
@@ -311,6 +319,7 @@ do
 		button:SetScript("OnClick", onClick)
 		button:SetScript("OnEnter", onEnter)
 		button:SetScript("OnLeave", onLeave)
+		button:SetScript("OnReceiveDrag", dropAction)
 		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
 		button:SetPushedTextOffset(0, 0)
@@ -324,7 +333,8 @@ do
 		-- button:SetFontString(button.label)
 		
 		button.label = button:CreateFontString(nil, nil, "GameFontHighlightLeft")
-		button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+		-- button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+		button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 3)
 		button:SetFontString(button.label)
 		
 		local label = button.label
@@ -339,7 +349,7 @@ do
 		-- label:SetPoint("BOTTOM", 0, 3)
 		
 		button.source = button:CreateFontString(nil, nil, "GameFontHighlightSmallLeft")
-		button.source:SetPoint("BOTTOMLEFT", button.icon, "BOTTOMRIGHT", 4, 0)
+		button.source:SetPoint("LEFT", button.icon, "BOTTOMRIGHT", 4, 0)
 		
 		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
@@ -412,9 +422,10 @@ do
 			button.icon:SetTexture("")
 		else
 			local binding = object
-			button.label:SetText("["..addon:GetScopeLabel(binding.scope).."] "..addon:GetActionName(binding.action))
+			button.label:SetText(addon:GetActionName(binding.action))
 			button.info:SetText(GetBindingText(addon:GetBindingKey(binding.action) or NOT_BOUND, "KEY_"))
 			button.icon:SetTexture(addon:GetActionTexture(binding.action))
+			button.source:SetText(addon:GetScopeLabel(binding.scope))
 			button.binding = binding.action
 			button.scope = binding.scope
 		end
@@ -442,7 +453,7 @@ do
 			button:SetShown(object ~= nil)
 		end
 		
-		HybridScrollFrame_Update(self, #list * BUTTON_HEIGHT, numButtons * BUTTON_HEIGHT)
+		HybridScrollFrame_Update(self, #list * self.buttonHeight, numButtons * self.buttonHeight)
 	end
 	
 	local name = getWidgetName()
@@ -492,6 +503,8 @@ local sortAscending = {
 
 local function listSort(a, b)
 	if a.scope == b.scope then
+		if not addon:GetActionName(a.action) then print(a.action) return end
+		if not addon:GetActionName(b.action) then print(b.action) return end
 		return addon:GetActionName(a.action) < addon:GetActionName(b.action)
 	else
 		return a.scope > b.scope
@@ -520,7 +533,7 @@ function addon:Update()
 	for i = #scopes, 1, -1 do
 		local scope = scopes[i]
 		if self:IsScopeUsed(scope) then
-			for action in pairs(self.db[scope].actions) do
+			for action in pairs(self:GetActions(scope)) do
 				-- don't duplicate if included in more than one scope
 				if not usedActions[action] then
 					tinsert(list, {
@@ -534,6 +547,8 @@ function addon:Update()
 	end
 	sort(list, listSort)
 	scrollFrame:update()
+	
+	self:UpdateCustomBindings()
 end
 
 addon.UPDATE_BINDINGS = addon.Update
