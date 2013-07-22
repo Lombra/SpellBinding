@@ -259,13 +259,13 @@ function addon:GetBindingKey(action2)
 	return GetBindingKey(action2)
 end
 
-function addon:ClearBinding(action2)
-	for key, action in pairs(addon.db.global.bindings) do
+function addon:ClearBinding(action2, scope)
+	for key, action in pairs(self:GetBindings(scope)) do
 		if action == action2 then
 			addon.db.global.bindings[key] = nil
-			SetOverrideBinding(frame, nil, key, nil)
 		end
 	end
+	self:ApplyBindings()
 end
 
 local getName = {
