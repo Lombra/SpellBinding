@@ -7,7 +7,7 @@ local function getWidgetName()
 	return name
 end
 
-local currentKey, currentAction, currentScope
+local currentKey, currentAction, currentScope, previousScope
 local list
 
 local scopeLabels = {
@@ -228,6 +228,13 @@ OK:SetPoint("BOTTOMRIGHT", -16, 16)
 OK:SetWidth(80)
 OK:SetText(ACCEPT)
 OK:SetScript("OnClick", function()
+	if previousScope ~= currentScope then
+		-- local key = addon:GetBindingKey(currentAction)
+		-- if not key or key == currentKey then
+			addon:ClearBinding(currentAction, previousScope)
+			addon:GetActions(previousScope)[currentAction] = nil
+		-- end
+	end
 	SetOverrideBinding(Bindings, nil, currentKey, currentAction:gsub("(%d+)$", GetSpellInfo))
 	addon:GetActions(currentScope)[currentAction] = true
 	addon:GetBindings(currentScope)[currentKey] = currentAction
@@ -250,15 +257,16 @@ do
 		},
 		{
 			text = "Unbind",
-			func = function(self, action)
-				addon:ClearBinding(action)
+			func = function(self, action, scope)
+				addon:ClearBinding(action, scope)
 				addon:Update()
 			end,
 		},
 		{
 			text = "Remove",
-			func = function(self, action)
-				addon.db.global.actions[action] = nil
+			func = function(self, action, scope)
+				addon:ClearBinding(action, scope)
+				addon.db[scope].actions[action] = nil
 				addon:Update()
 			end,
 		},
@@ -267,11 +275,13 @@ do
 	local menu = CreateFrame("Frame")
 	menu.displayMode = "MENU"
 	menu.initialize = function(self)
+		local button = UIDROPDOWNMENU_MENU_VALUE
 		for i, option in ipairs(options) do
 			local info = UIDropDownMenu_CreateInfo()
 			info.text = option.text
 			info.func = option.func
-			info.arg1 = UIDROPDOWNMENU_MENU_VALUE
+			info.arg1 = button.binding
+			info.arg2 = button.scope
 			info.notCheckable = true
 			UIDropDownMenu_AddButton(info)
 		end
@@ -284,11 +294,12 @@ do
 		end
 		if button == "LeftButton" then
 			currentAction = self.binding
-			currentScope = self.scope or "global"
+			previousScope = self.scope
+			currentScope = self.scope
 			UIDropDownMenu_SetText(scope, addon:GetScopeLabel(currentScope))
 			overlay:Show()
 		else
-			ToggleDropDownMenu(nil, self.binding, menu, self, 0, 0)
+			ToggleDropDownMenu(nil, self, menu, self, 0, 0)
 		end
 	end
 	
