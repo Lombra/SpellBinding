@@ -21,27 +21,28 @@ local scopeLabels = {
 	profile = "Profile",
 }
 
-local function dropAction(self, button)
-	if button == "LeftButton" or not button then
-		local type, data, subType, subData = GetCursorInfo()
-		if type == "item" then
-			addon.db.global.actions["ITEM item:"..data] = true
-		elseif type == "spell" then
-			addon.db.global.actions["SPELL "..subData] = true
-		elseif type == "macro" then
-			addon.db.global.actions["MACRO "..GetMacroInfo(data)] = true
-		end
-		addon:Update()
-	end
-	ClearCursor()
-	-- print(type, data, subType, subData)
-end
-
 local Bindings = addon:NewModule("Bindings")
 
 Bindings:EnableMouse(true)
 Bindings:SetScript("OnMouseUp", dropAction)
 Bindings:SetScript("OnReceiveDrag", dropAction)
+
+local function dropAction(self, button)
+	if button == "LeftButton" or not button then
+		local action
+		local type, data, subType, subData = GetCursorInfo()
+		if type == "item" then
+			action = "ITEM item:"..data
+		elseif type == "spell" then
+			action = "SPELL "..subData
+		elseif type == "macro" then
+			action = "MACRO "..GetMacroInfo(data)
+		end
+		addon:AddBinding(nil, action, self.scope or "global")
+		Bindings:UpdateList()
+	end
+	ClearCursor()
+end
 
 local function onClick(self, v)
 	UIDropDownMenu_SetText(SpellBindingCurrentScopeMenu, addon:GetScopeLabel(v) or v)
@@ -101,92 +102,31 @@ searchBox:SetScript("OnTextChanged", function(self, isUserInput)
 	local text = self:GetText():lower()
 end)
 
-local buttonMappings = {
-	LeftButton = "BUTTON1",
-	RightButton = "BUTTON2",
-	MiddleButton = "BUTTON3",
-}
-
-local ignoredKeys = {
-	UNKNOWN = true,
-	BUTTON1 = true,
-	BUTTON2 = true,
-	LSHIFT = true,
-	RSHIFT = true,
-	LCTRL = true,
-	RCTRL = true,
-	LALT = true,
-	RALT = true,
-}
-
-local overlay = CreateFrame("Button", nil, Bindings)
-overlay:SetAllPoints()
-overlay:SetToplevel(true)
-overlay:RegisterForClicks("AnyUp")
-overlay:Hide()
-overlay:SetBackdrop({
-	bgFile = [[Interface\Buttons\WHITE8X8]],
-	insets = {left = 4, right = 4, top = 21, bottom = 4}
-})
-overlay:SetBackdropColor(0, 0, 0, 0.7)
-
-local function onBinding(keyPressed)
-	if GetBindingFromClick(keyPressed) == "TOGGLEGAMEMENU" then
-		overlay:Hide()
+local overlay = addon:CreateBindingOverlay(Bindings)
+overlay.OnAccept = function(self)
+	if not currentKey then
 		return
 	end
-	
-	keyPressed = buttonMappings[keyPressed] or keyPressed
-	
-	if keyPressed:match("^Button%d+$") then
-		keyPressed = keyPressed:upper()
-		-- 4 - 31
+	if previousScope ~= currentScope then
+		-- local key = addon:GetBindingKey(currentAction)
+		-- if not key or key == currentKey then
+			addon:ClearBinding(currentAction, previousScope)
+			addon:GetActions(previousScope)[currentAction] = nil
+		-- end
 	end
-
-	if ignoredKeys[keyPressed] then
-		return
-	end
-
-	if IsShiftKeyDown() then
-		keyPressed = "SHIFT-"..keyPressed
-	end
-	if IsControlKeyDown() then
-		keyPressed = "CTRL-"..keyPressed
-	end
-	if IsAltKeyDown() then
-		keyPressed = "ALT-"..keyPressed
-	end
-	
-	-- print(GetBindingFromClick(keyPressed), GetBindingText(GetBindingFromClick(keyPressed), "BINDING_NAME_"))
-	addon:SetOverlayText(addon:GetActionName(currentAction), GetBindingText(keyPressed, "KEY_"))
+	addon:AddBinding(currentKey, currentAction, currentScope)
+end
+overlay.OnBinding = function(self, keyPressed)
 	currentKey = keyPressed
+	addon:SetOverlayText(addon:GetActionInfo(currentAction), GetBindingText(keyPressed, "KEY_"))
 end
-
-local handlers = {
-	OnKeyDown = function(self, key)
-		onBinding(key)
-	end,
-	OnClick = function(self, button)
-		onBinding(button)
-	end,
-	OnMouseWheel = function(self, delta)
-		if delta > 0 then
-			onBinding("MOUSEWHEELUP")
-		else
-			onBinding("MOUSEWHEELDOWN")
-		end
-	end,
-	OnShow = function(self)
-		addon:SetOverlayText(addon:GetActionName(currentAction), GetBindingText(addon:GetBindingKey(currentAction) or NOT_BOUND, "KEY_"))
-	end,
-	OnHide = function(self)
-		currentKey = nil
-	end,
-}
-
-for event, handler in pairs(handlers) do
-	overlay:SetScript(event, handler)
-end
+overlay:SetScript("OnShow", function(self)
+	currentKey = addon:GetBindingKey(currentAction)
+	addon:SetOverlayText(addon:GetActionInfo(currentAction), GetBindingText(currentKey or NOT_BOUND, "KEY_"))
+end)
+overlay:SetScript("OnHide", function(self)
+	currentKey = nil
+end)
 
 local info = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
 info:SetPoint("CENTER", 0, 24)
@@ -197,6 +137,11 @@ overlay.actionName:SetPoint("CENTER")
 
 overlay.key = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
 overlay.key:SetPoint("CENTER", 0, -24)
+
+-- overlay.replace = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
+overlay.replace = overlay:CreateFontString(nil, nil, "GameFontNormal")
+overlay.replace:SetPoint("CENTER", 0, -48)
+overlay.replace:SetTextColor(RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
 
 local function onClick(self, scope)
 	UIDropDownMenu_SetText(self.owner, addon:GetScopeLabel(scope))
@@ -223,28 +168,8 @@ local label = scope:CreateFontString(nil, nil, "GameFontNormalSmall")
 label:SetPoint("BOTTOMLEFT", scope, "TOPLEFT", 16, 3)
 label:SetText("Scope")
 
-local OK = CreateFrame("Button", nil, overlay, "UIPanelButtonTemplate")
-OK:SetPoint("BOTTOMRIGHT", -16, 16)
-OK:SetWidth(80)
-OK:SetText(ACCEPT)
-OK:SetScript("OnClick", function()
-	if previousScope ~= currentScope then
-		-- local key = addon:GetBindingKey(currentAction)
-		-- if not key or key == currentKey then
-			addon:ClearBinding(currentAction, previousScope)
-			addon:GetActions(previousScope)[currentAction] = nil
-		-- end
-	end
-	SetOverrideBinding(Bindings, nil, currentKey, currentAction:gsub("(%d+)$", GetSpellInfo))
-	addon:GetActions(currentScope)[currentAction] = true
-	addon:GetBindings(currentScope)[currentKey] = currentAction
-	overlay:Hide()
-	addon:Update()
-	addon:UpdateCustomBindings()
-end)
-
 do
-	local BUTTON_HEIGHT = 24
+	local BUTTON_HEIGHT = 18
 	local BUTTON_OFFSET = 2
 	
 	local options = {
@@ -259,7 +184,7 @@ do
 			text = "Unbind",
 			func = function(self, action, scope)
 				addon:ClearBinding(action, scope)
-				addon:Update()
+				Bindings:UpdateList()
 			end,
 		},
 		{
@@ -267,7 +192,7 @@ do
 			func = function(self, action, scope)
 				addon:ClearBinding(action, scope)
 				addon.db[scope].actions[action] = nil
-				addon:Update()
+				Bindings:UpdateList()
 			end,
 		},
 	}
@@ -292,6 +217,7 @@ do
 			dropAction(self, button)
 			return
 		end
+		if self.isHeader then return end
 		if button == "LeftButton" then
 			currentAction = self.binding
 			previousScope = self.scope
@@ -311,8 +237,9 @@ do
 	end
 	
 	local function onEnter(self)
+		if self.isHeader then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 28, 0)
-		GameTooltip:AddLine(addon:GetActionName(self.binding))
+		GameTooltip:AddLine((addon:GetActionInfo(self.binding)))
 		listBindings(GetBindingKey(self.binding))
 		GameTooltip:Show()
 		self.showingTooltip = true
@@ -332,46 +259,26 @@ do
 		button:SetScript("OnLeave", onLeave)
 		button:SetScript("OnReceiveDrag", dropAction)
 		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-		button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
 		button:SetPushedTextOffset(0, 0)
 
 		button.icon = button:CreateTexture()
 		button.icon:SetPoint("LEFT", 3, 0)
 		button.icon:SetSize(16, 16)
 		
+		button.label = button:CreateFontString(nil, nil, "GameFontHighlightLeft")
+		button:SetFontString(button.label)
 		-- button.label = button:CreateFontString(nil, nil, "GameFontNormal")
 		-- button.label:SetWordWrap(false)
-		-- button:SetFontString(button.label)
-		
-		button.label = button:CreateFontString(nil, nil, "GameFontHighlightLeft")
-		-- button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
-		button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 3)
-		button:SetFontString(button.label)
-		
 		local label = button.label
-		
-		label:SetJustifyH("LEFT")
-		label:SetJustifyV("TOP")
-		
+		-- label:SetJustifyH("LEFT")
+		-- label:SetJustifyV("TOP")
 		-- label:SetPoint("TOP", 0, -1)
 		-- label:SetPoint("LEFT", button.icon, "TOPRIGHT", 4, 0)
-		-- label:SetPoint("TOPLEFT", button.icon, "TOPRIGHT", 4, 0)
 		-- label:SetPoint("RIGHT", -21, 0)
 		-- label:SetPoint("BOTTOM", 0, 3)
 		
-		button.source = button:CreateFontString(nil, nil, "GameFontHighlightSmallLeft")
-		button.source:SetPoint("LEFT", button.icon, "BOTTOMRIGHT", 4, 0)
-		
 		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
-		
-		return button
-	end
-	
-	local function createHeader(frame)
-		local button = createButton(frame)
-		
-		button:SetNormalFontObject(GameFontNormal)
 		
 		local left = button:CreateTexture(nil, "BORDER")
 		left:SetPoint("LEFT")
@@ -392,60 +299,46 @@ do
 		middle:SetTexture([[Interface\Buttons\CollapsibleHeader]])
 		middle:SetTexCoord(0.48046875, 0.98046875, 0.01562500, 0.26562500)
 		
-		local left = button:CreateTexture(nil, "HIGHLIGHT")
-		left:SetBlendMode("ADD")
-		left:SetPoint("LEFT", -5, 0)
-		left:SetSize(26, 18)
-		left:SetTexture([[Interface\Buttons\CollapsibleHeader]])
-		left:SetTexCoord(18 / 256, 44 / 256, 18 / 64, 36 / 64)
-		
-		local right = button:CreateTexture(nil, "HIGHLIGHT")
-		right:SetBlendMode("ADD")
-		right:SetPoint("RIGHT", 5, 0)
-		right:SetSize(26, 18)
-		right:SetTexture([[Interface\Buttons\CollapsibleHeader]])
-		right:SetTexCoord(18 / 256, 44 / 256, 0, 18 / 64)
-		
-		local middle = button:CreateTexture(nil, "HIGHLIGHT")
-		middle:SetBlendMode("ADD")
-		middle:SetPoint("LEFT", left, "RIGHT")
-		middle:SetPoint("RIGHT", right, "LEFT")
-		middle:SetHeight(18)
-		middle:SetTexture([[Interface\Buttons\CollapsibleHeader]])
-		middle:SetTexCoord(0, 18 / 256, 0, 18 / 64)
-		
-		-- local highlight = button:CreateTexture()
-		-- highlight:SetPoint("TOPLEFT", 3, -2)
-		-- highlight:SetPoint("BOTTOMRIGHT", -3, 2)
-		-- highlight:SetTexture([[Interface\TokenFrame\UI-TokenFrame-CategoryButton]])
-		-- highlight:SetTexCoord(0, 1, 0.609375, 0.796875)
-		-- button:SetHighlightTexture(highlight)
-		
 		return button
 	end
 	
 	local function updateButton(button, object)
-		local isHeader = type(object) ~= "table"
+		local isHeader = not object.action
 		if isHeader then
-			button.label:SetText(object.name)
-			button.label:SetFontObject("GameFontNormal")
+			button.label:SetText(addon:GetScopeLabel(object.scope))
+			
+			button:SetNormalFontObject(GameFontNormal)
+			button:EnableDrawLayer("BORDER")
+			button:SetHighlightTexture(nil)
 			button.info:SetText("")
 			button.icon:SetTexture("")
+			button.label:SetPoint("LEFT", 11, 0)
 		else
 			local binding = object
-			button.label:SetText(addon:GetActionName(binding.action))
-			button.info:SetText(GetBindingText(addon:GetBindingKey(binding.action) or NOT_BOUND, "KEY_"))
-			button.icon:SetTexture(addon:GetActionTexture(binding.action))
-			button.source:SetText(addon:GetScopeLabel(binding.scope))
-			button.binding = binding.action
-			button.scope = binding.scope
-		end
-		
-		if button.showingTooltip then
-			if not isHeader then
-				-- GameTooltip:SetItemByID(button.itemID)
+			local name, texture, type = addon:GetActionInfo(binding.action)
+			if type then
+				button.label:SetFormattedText("%s: %s", type, name)
 			else
+				button.label:SetText(name)
+			end
+			button.info:SetText(GetBindingText(addon:GetBindingKey(binding.action) or NOT_BOUND, "KEY_"))
+			button.icon:SetTexture(texture)
+			
+			button:SetNormalFontObject(GameFontHighlight)
+			button:DisableDrawLayer("BORDER")
+			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
+			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+		end
+		button.binding = object.action
+		button.scope = object.scope
+		button.isHeader = isHeader
+		
+		-- if button.showingTooltip then
+		if GameTooltip:IsOwned(button) then
+			if isHeader then
 				GameTooltip:Hide()
+			else
+				onEnter(button)
 			end
 		end
 	end
@@ -472,13 +365,12 @@ do
 	scrollFrame:SetPoint("TOP", Bindings.Inset, 0, -4)
 	scrollFrame:SetPoint("LEFT", Bindings.Inset, 4, 0)
 	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -23, 4)
+	scrollFrame:SetScript("OnMouseUp", dropAction)
+	scrollFrame:SetScript("OnReceiveDrag", dropAction)
 	scrollFrame.update = function()
 		update(scrollFrame)
 	end
 	_G[name] = nil
-	
-	scrollFrame:SetScript("OnMouseUp", dropAction)
-	scrollFrame:SetScript("OnReceiveDrag", dropAction)
 	
 	local scrollBar = CreateFrame("Slider", nil, scrollFrame, "HybridScrollBarTemplate")
 	scrollBar:ClearAllPoints()
@@ -492,7 +384,7 @@ do
 	for i = 1, (ceil(scrollFrame:GetHeight() / BUTTON_HEIGHT) + 1) do
 		local button = createButton(scrollFrame.scrollChild)
 		if i == 1 then
-			button:SetPoint("TOPLEFT", 1, -2)
+			button:SetPoint("TOPLEFT", 2, -1)
 		else
 			button:SetPoint("TOPLEFT", buttons[i - 1], "BOTTOMLEFT", 0, -BUTTON_OFFSET)
 		end
@@ -502,23 +394,24 @@ do
 	HybridScrollFrame_CreateButtons(scrollFrame, nil, nil, nil, nil, nil, nil, -BUTTON_OFFSET)
 end
 
-local sortPriority = {
-	"type",
-	"name",
-}
+local customSort = {}
 
-local sortAscending = {
-	name = true,
-	type = true,
-}
+-- reverse the tables for easier use
+function addon:UpdateSortOrder()
+	wipe(customSort)
+	for i, v in ipairs(self.db.global.scopes) do
+		customSort[v] = i
+	end
+end
 
 local function listSort(a, b)
 	if a.scope == b.scope then
-		if not addon:GetActionName(a.action) then print(a.action) return end
-		if not addon:GetActionName(b.action) then print(b.action) return end
-		return addon:GetActionName(a.action) < addon:GetActionName(b.action)
+		if not a.action and b.action then return true end
+		if not addon:GetActionInfo(a.action) then if a.action then print(a.action) end return end
+		if not addon:GetActionInfo(b.action) then if b.action then print(b.action) end return end
+		return addon:GetActionInfo(a.action) < addon:GetActionInfo(b.action)
 	else
-		return a.scope > b.scope
+		return customSort[a.scope] < customSort[b.scope]
 	end
 	-- a, b = items[a], items[b]
 	-- if not (a and b) then return end
@@ -537,14 +430,19 @@ end
 
 local usedActions = {}
 
-function addon:Update()
+function Bindings:UpdateList()
 	list = {}
 	wipe(usedActions)
-	local scopes = self.db.global.scopes
+	local scopes = addon.db.global.scopes
 	for i = #scopes, 1, -1 do
 		local scope = scopes[i]
-		if self:IsScopeUsed(scope) then
-			for action in pairs(self:GetActions(scope)) do
+		if addon:IsScopeUsed(scope) then
+			if next(addon:GetActions(scope)) then
+				tinsert(list, {
+					scope = scope,
+				})
+			end
+			for action in pairs(addon:GetActions(scope)) do
 				-- don't duplicate if included in more than one scope
 				if not usedActions[action] then
 					tinsert(list, {
@@ -558,13 +456,18 @@ function addon:Update()
 	end
 	sort(list, listSort)
 	scrollFrame:update()
-	
-	self:UpdateCustomBindings()
 end
 
-addon.UPDATE_BINDINGS = addon.Update
+Bindings.UPDATE_BINDINGS = Bindings.UpdateList
 
 function addon:SetOverlayText(action, key)
 	overlay.actionName:SetFormattedText("%s", action)
-	overlay.key:SetFormattedText("%s", key)
+	overlay.key:SetFormattedText("Current key: %s", key)
+	local currentAction = currentKey and GetBindingByKey(currentKey)
+	if currentAction then
+		local name, _, type = self:GetActionInfo(currentAction)
+		overlay.replace:SetFormattedText("Will replace %s.", name)
+	else
+		overlay.replace:SetText()
+	end
 end

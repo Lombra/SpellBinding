@@ -2,13 +2,17 @@ local addonName, addon = ...
 
 local Scoping = addon:NewModule("Scoping")
 
+function Scoping:OnInitialize()
+	self:UpdateScopeMenus()
+end
+
 local scopeMenus = {}
 
-function addon:UpdateScopeMenus()
-	local db = self.db.global.scopes
+function Scoping:UpdateScopeMenus()
+	local db = addon.db.global.scopes
 	for i = 1, #db do
 		local menu = self:GetScopeMenu(i)
-		UIDropDownMenu_SetText(menu, self:GetScopeLabel(db[i]))
+		UIDropDownMenu_SetText(menu, addon:GetScopeLabel(db[i]))
 		menu.moveUp:Show()
 		menu.moveUp:SetEnabled(i ~= 1)
 		menu.moveDown:Show()
@@ -21,9 +25,11 @@ function addon:UpdateScopeMenus()
 	for i = #db + 2, #scopeMenus do
 		self:GetScopeMenu(i):Hide()
 	end
+	addon:UpdateSortOrder()
+	addon:ApplyBindings()
 end
 
-function addon:GetScopeMenu(index)
+function Scoping:GetScopeMenu(index)
 	return scopeMenus[index] or self:CreateScopeMenu(index)
 end
 
@@ -31,7 +37,7 @@ local function disableScope(self, scope)
 	for i, v in ipairs(addon.db.global.scopes) do
 		if v == scope then
 			tremove(addon.db.global.scopes, i)
-			addon:UpdateScopeMenus()
+			Scoping:UpdateScopeMenus()
 			return
 		end
 	end
@@ -39,7 +45,7 @@ end
 
 local function onClick(self, scope)
 	tinsert(addon.db.global.scopes, scope)
-	addon:UpdateScopeMenus()
+	Scoping:UpdateScopeMenus()
 end
 
 local function initializeScopeMenu(self)
@@ -70,10 +76,10 @@ local function move(self)
 	local index = self.index
 	local swapIndex = index + self.shiftMod
 	db[index], db[swapIndex] = db[swapIndex], db[index]
-	addon:UpdateScopeMenus()
+	Scoping:UpdateScopeMenus()
 end
 
-function addon:CreateScopeMenu(index)
+function Scoping:CreateScopeMenu(index)
 	local menu = CreateFrame("Frame", addonName.."ScopeMenu"..index, Scoping, "UIDropDownMenuTemplate")
 	if index == 1 then
 		menu:SetPoint("TOPLEFT", Scoping.Inset, 0, -16)
