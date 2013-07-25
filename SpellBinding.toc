@@ -11,7 +11,7 @@ Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\AceDB-3.0\AceDB-3.0.lua
 Libs\LibDualSpec-1.0\LibDualSpec-1.0.lua
 
-Libs\AceDBUI.lua
+AceDBUI.lua
 
 Core.lua
 Bindings.lua

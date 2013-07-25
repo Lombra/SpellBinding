@@ -98,7 +98,7 @@ function Scoping:CreateScopeMenu(index)
 	menu.moveUp:SetNormalTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollUp-Up]])
 	menu.moveUp:SetPushedTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollUp-Down]])
 	menu.moveUp:SetDisabledTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollUp-Disabled]])
-	menu.moveUp:SetHighlightTexture([[Interface\ChatFrame\UI-ChatIcon-BlinkHilight]])
+	menu.moveUp:SetHighlightTexture([[Interface\Buttons\UI-Common-MouseHilight]])
 	menu.moveUp:SetScript("OnClick", move)
 	menu.moveUp.index = index
 	menu.moveUp.shiftMod = -1

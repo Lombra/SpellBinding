@@ -52,6 +52,11 @@ function addon:CreateOverlay(parent, isBindingOverlay)
 	return overlay
 end
 
+local function setBindingText(self, action, key)
+	self.actionName:SetFormattedText("%s", action)
+	self.key:SetFormattedText("Current key: %s", GetBindingText(key or NOT_BOUND, "KEY_"))
+end
+
 local buttonMappings = {
 	LeftButton = "BUTTON1",
 	RightButton = "BUTTON2",
@@ -120,10 +125,21 @@ end
 function addon:CreateBindingOverlay(parent)
 	local overlay = self:CreateOverlay(parent, true)
 	overlay:RegisterForClicks("AnyUp")
+	overlay.SetBindingText = setBindingText
 	
 	for event, handler in pairs(handlers) do
 		overlay:SetScript(event, handler)
 	end
+	
+	local info = overlay:CreateFontString(nil, nil, "GameFontNormal")
+	info:SetPoint("CENTER", 0, 24)
+	info:SetText("Press a key to bind")
+	
+	overlay.actionName = overlay:CreateFontString(nil, nil, "GameFontNormalLarge")
+	overlay.actionName:SetPoint("CENTER")
+	
+	overlay.key = overlay:CreateFontString(nil, nil, "GameFontNormal")
+	overlay.key:SetPoint("CENTER", 0, -24)
 	
 	local acceptButton = CreateFrame("Button", nil, overlay, "UIPanelButtonTemplate")
 	acceptButton:SetWidth(80)
