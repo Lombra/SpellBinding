@@ -10,17 +10,6 @@ end
 local currentKey, currentAction, currentScope, previousScope
 local list
 
-local scopeLabels = {
-	char = "Character",
-	realm = "Realm",
-	class = "Class",
-	race = "Race",
-	faction = "Faction",
-	factionrealm = "Faction - realm",
-	global = "Global",
-	profile = "Profile",
-}
-
 local Bindings = addon:NewModule("Bindings")
 
 Bindings:EnableMouse(true)
@@ -105,7 +94,7 @@ end)
 local overlay = addon:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
 	if not currentKey then
-		return
+		-- return
 	end
 	if previousScope ~= currentScope then
 		-- local key = addon:GetBindingKey(currentAction)
@@ -118,27 +107,23 @@ overlay.OnAccept = function(self)
 end
 overlay.OnBinding = function(self, keyPressed)
 	currentKey = keyPressed
-	addon:SetOverlayText(addon:GetActionInfo(currentAction), GetBindingText(keyPressed, "KEY_"))
+	self:SetBindingText(addon:GetActionInfo(currentAction), keyPressed)
+	local previousAction = currentKey and GetBindingByKey(currentKey)
+	if previousAction and previousAction ~= currentAction then
+		local name, _, type = addon:GetActionInfo(previousAction)
+		self.replace:SetFormattedText("Will replace %s.", name)
+	else
+		self.replace:SetText()
+	end
 end
 overlay:SetScript("OnShow", function(self)
 	currentKey = addon:GetBindingKey(currentAction)
-	addon:SetOverlayText(addon:GetActionInfo(currentAction), GetBindingText(currentKey or NOT_BOUND, "KEY_"))
+	self:SetBindingText(addon:GetActionInfo(currentAction), currentKey)
 end)
 overlay:SetScript("OnHide", function(self)
 	currentKey = nil
 end)
 
-local info = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
-info:SetPoint("CENTER", 0, 24)
-info:SetText("Press a key to bind")
-
-overlay.actionName = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-overlay.actionName:SetPoint("CENTER")
-
-overlay.key = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
-overlay.key:SetPoint("CENTER", 0, -24)
-
--- overlay.replace = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
 overlay.replace = overlay:CreateFontString(nil, nil, "GameFontNormal")
 overlay.replace:SetPoint("CENTER", 0, -48)
 overlay.replace:SetTextColor(RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
@@ -240,7 +225,7 @@ do
 		if self.isHeader then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 28, 0)
 		GameTooltip:AddLine((addon:GetActionInfo(self.binding)))
-		listBindings(GetBindingKey(self.binding))
+		listBindings(addon:GetBindingKey(self.binding))
 		GameTooltip:Show()
 		self.showingTooltip = true
 	end
@@ -280,19 +265,19 @@ do
 		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
 		
-		local left = button:CreateTexture(nil, "BORDER")
+		local left = button:CreateTexture(nil, "BACKGROUND")
 		left:SetPoint("LEFT")
 		left:SetSize(76, 16)
 		left:SetTexture([[Interface\Buttons\CollapsibleHeader]])
 		left:SetTexCoord(0.17578125, 0.47265625, 0.29687500, 0.54687500)
 		
-		local right = button:CreateTexture(nil, "BORDER")
+		local right = button:CreateTexture(nil, "BACKGROUND")
 		right:SetPoint("RIGHT")
 		right:SetSize(76, 16)
 		right:SetTexture([[Interface\Buttons\CollapsibleHeader]])
 		right:SetTexCoord(0.17578125, 0.47265625, 0.01562500, 0.26562500)
 		
-		local middle = button:CreateTexture(nil, "BORDER")
+		local middle = button:CreateTexture(nil, "BACKGROUND")
 		middle:SetPoint("LEFT", left, "RIGHT", -20, 0)
 		middle:SetPoint("RIGHT", right, "LEFT", 20, 0)
 		middle:SetHeight(16)
@@ -308,7 +293,7 @@ do
 			button.label:SetText(addon:GetScopeLabel(object.scope))
 			
 			button:SetNormalFontObject(GameFontNormal)
-			button:EnableDrawLayer("BORDER")
+			button:EnableDrawLayer("BACKGROUND")
 			button:SetHighlightTexture(nil)
 			button.info:SetText("")
 			button.icon:SetTexture("")
@@ -325,7 +310,7 @@ do
 			button.icon:SetTexture(texture)
 			
 			button:SetNormalFontObject(GameFontHighlight)
-			button:DisableDrawLayer("BORDER")
+			button:DisableDrawLayer("BACKGROUND")
 			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
 			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
 		end
@@ -362,8 +347,7 @@ do
 	
 	local name = getWidgetName()
 	scrollFrame = CreateFrame("ScrollFrame", name, Bindings, "HybridScrollFrameTemplate")
-	scrollFrame:SetPoint("TOP", Bindings.Inset, 0, -4)
-	scrollFrame:SetPoint("LEFT", Bindings.Inset, 4, 0)
+	scrollFrame:SetPoint("TOPLEFT", Bindings.Inset, 4, -4)
 	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -23, 4)
 	scrollFrame:SetScript("OnMouseUp", dropAction)
 	scrollFrame:SetScript("OnReceiveDrag", dropAction)
@@ -459,15 +443,3 @@ function Bindings:UpdateList()
 end
 
 Bindings.UPDATE_BINDINGS = Bindings.UpdateList
-
-function addon:SetOverlayText(action, key)
-	overlay.actionName:SetFormattedText("%s", action)
-	overlay.key:SetFormattedText("Current key: %s", key)
-	local currentAction = currentKey and GetBindingByKey(currentKey)
-	if currentAction then
-		local name, _, type = self:GetActionInfo(currentAction)
-		overlay.replace:SetFormattedText("Will replace %s.", name)
-	else
-		overlay.replace:SetText()
-	end
-end

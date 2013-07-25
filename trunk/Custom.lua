@@ -4,33 +4,57 @@ local Custom = addon:NewModule("Custom")
 
 local currentKey, currentIndex
 
+local function onEnterPressed(self)
+	local value = self:GetNumber()
+	if value < 1 or value > self.max then
+		return
+	end
+	Custom.db.global[self.setting] = self:GetNumber()
+	Custom:UpdateGrid()
+	self:ClearFocus()
+end
+
+local function onEscapePressed(self)
+	self:SetNumber(Custom.db.global[self.setting])
+	self:ClearFocus()
+end
+
+local function onTextChanged(self, isUserInput)
+	local value = self:GetNumber()
+	if value < 1 or value > self.max then
+		self:SetTextColor(1, 0, 0)
+	else
+		self:SetTextColor(1, 1, 1)
+	end
+end
+
 local function createEditbox(name)
 	local editbox = CreateFrame("EditBox", name, Custom, "InputBoxTemplate")
 	_G[name] = nil
 	editbox:SetSize(32, 20)
 	editbox:SetFontObject("ChatFontSmall")
 	editbox:SetAutoFocus(false)
-	editbox:SetScript("OnEnterPressed", EditBox_ClearFocus)
+	editbox:SetScript("OnEnterPressed", onEnterPressed)
+	editbox:SetScript("OnEscapePressed", onEscapePressed)
+	editbox:SetScript("OnTextChanged", onTextChanged)
+	editbox.label = editbox:CreateFontString(nil, nil, "GameFontNormalSmall")
+	editbox.label:SetPoint("BOTTOMLEFT", editbox, "TOPLEFT", 0, 0)
 	return editbox
 end
 
 local num = createEditbox(addonName.."GridSize")
 num:SetPoint("TOPLEFT", 16, -33)
 num:SetNumeric(true)
-num:SetScript("OnEnterPressed", function(self)
-	Custom.db.global.gridRows = self:GetNumber()
-	Custom:UpdateGrid()
-	self:ClearFocus()
-end)
+num.setting = "gridRows"
+num.max = 8
+num.label:SetText("Rows")
 
 local width = createEditbox(addonName.."GridWidth")
 width:SetPoint("LEFT", num, "RIGHT", 8, 0)
 width:SetNumeric(true)
-width:SetScript("OnEnterPressed", function(self)
-	Custom.db.global.gridColumns = self:GetNumber()
-	Custom:UpdateGrid()
-	self:ClearFocus()
-end)
+width.setting = "gridColumns"
+width.max = 7
+width.label:SetText("Columns")
 
 local overlay = addon:CreateBindingOverlay(Custom)
 overlay.OnAccept = function(self)
@@ -38,27 +62,15 @@ overlay.OnAccept = function(self)
 	Custom:UpdateCustomBindings()
 end
 overlay.OnBinding = function(self, keyPressed)
-	self.actionName:SetText("Button "..currentIndex)
-	self.key:SetFormattedText("Current key: %s", GetBindingText(keyPressed, "KEY_"))
+	self:SetBindingText("Button "..currentIndex, keyPressed)
 	currentKey = keyPressed
 end
 overlay:SetScript("OnShow", function(self)
-	self.actionName:SetText("Button "..currentIndex)
-	self.key:SetFormattedText("Current key: %s", GetBindingText(Custom.db.global.keys[currentIndex], "KEY_"))
+	self:SetBindingText("Button "..currentIndex, Custom.db.global.keys[currentIndex])
 end)
 overlay:SetScript("OnHide", function(self)
 	currentKey = nil
 end)
-
-local info = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
-info:SetPoint("CENTER", 0, 24)
-info:SetText("Press a key to bind")
-
-overlay.actionName = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-overlay.actionName:SetPoint("CENTER")
-
-overlay.key = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal", 1)
-overlay.key:SetPoint("CENTER", 0, -24)
 
 local function onClick(self, key, action)
 	addon:AddBinding(key, action, self.value)
@@ -190,6 +202,7 @@ local function createButton()
 	button:SetScript("OnLeave", onLeave)
 	button:SetScript("OnReceiveDrag", dropAction)
 	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
 	
 	button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
 	button.name:SetSize(36, 10)
@@ -199,9 +212,7 @@ local function createButton()
 	icon:SetSize(36, 36)
 	icon:SetPoint("CENTER", 0, -1)
 	button.icon = icon
-	button:SetNormalTexture(icon)
-	button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
-	-- button:SetCheckedTexture([[Interface\Buttons\CheckButtonHilight]])
+	-- button:SetNormalTexture(icon)
 	
 	local bg = button:CreateTexture(nil, "BACKGROUND")
 	bg:SetSize(45, 45)
@@ -237,19 +248,25 @@ function Custom:OnInitialize()
 	self:UpdateGrid()
 end
 
+local XPADDING = 10
+local YPADDING = 8
+
 function Custom:UpdateGrid()
+	local gridRows = self.db.global.gridRows
 	local gridColumns = self.db.global.gridColumns
-	local numButtons = self.db.global.gridRows * gridColumns
+	local numButtons = gridRows * gridColumns
 	for i = 1, numButtons do
 		local button = buttons[i] or createButton()
 		button:SetID(i)
 		button:Show()
 		if i == 1 then
-			button:SetPoint("TOPLEFT", 18, -72)
+			local gridWidth = gridColumns * (button:GetWidth() + XPADDING) - XPADDING
+			local gridHeight = gridRows * (button:GetHeight() + YPADDING) - YPADDING
+			button:SetPoint("TOPLEFT", Custom.Inset, "CENTER", -gridWidth / 2, gridHeight / 2)
 		elseif (i % gridColumns == 1) or (gridColumns == 1) then
-			button:SetPoint("TOPLEFT", buttons[i - gridColumns], "BOTTOMLEFT", 0, -8)
+			button:SetPoint("TOPLEFT", buttons[i - gridColumns], "BOTTOMLEFT", 0, -YPADDING)
 		else
-			button:SetPoint("TOPLEFT", buttons[i - 1], "TOPRIGHT", 10, 0)
+			button:SetPoint("TOPLEFT", buttons[i - 1], "TOPRIGHT", XPADDING, 0)
 		end
 		buttons[i] = button
 	end
