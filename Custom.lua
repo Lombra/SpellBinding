@@ -38,23 +38,23 @@ local function createEditbox(name)
 	editbox:SetScript("OnEscapePressed", onEscapePressed)
 	editbox:SetScript("OnTextChanged", onTextChanged)
 	editbox.label = editbox:CreateFontString(nil, nil, "GameFontNormalSmall")
-	editbox.label:SetPoint("BOTTOMLEFT", editbox, "TOPLEFT", 0, 0)
+	editbox.label:SetPoint("BOTTOMLEFT", editbox, "TOPLEFT", -4, 0)
 	return editbox
 end
 
-local num = createEditbox(addonName.."GridSize")
-num:SetPoint("TOPLEFT", 16, -33)
-num:SetNumeric(true)
-num.setting = "gridRows"
-num.max = 8
-num.label:SetText("Rows")
+local rowsEditbox = createEditbox(addonName.."GridRows")
+rowsEditbox:SetPoint("TOPLEFT", 16, -36)
+rowsEditbox:SetNumeric(true)
+rowsEditbox.setting = "gridRows"
+rowsEditbox.max = 8
+rowsEditbox.label:SetText("Rows")
 
-local width = createEditbox(addonName.."GridWidth")
-width:SetPoint("LEFT", num, "RIGHT", 8, 0)
-width:SetNumeric(true)
-width.setting = "gridColumns"
-width.max = 7
-width.label:SetText("Columns")
+local columnsEditbox = createEditbox(addonName.."GridColumns")
+columnsEditbox:SetPoint("LEFT", rowsEditbox, "RIGHT", 8, 0)
+columnsEditbox:SetNumeric(true)
+columnsEditbox.setting = "gridColumns"
+columnsEditbox.max = 7
+columnsEditbox.label:SetText("Columns")
 
 local overlay = addon:CreateBindingOverlay(Custom)
 overlay.OnAccept = function(self)
@@ -111,7 +111,6 @@ local function dropAction(self, button)
 		elseif type == "macro" then
 			action = "MACRO "..GetMacroInfo(data)
 		end
-		-- self.icon:SetTexture((select(2, addon:GetActionInfo(action))))
 		selectScopeMenu.key = Custom.db.global.keys[self:GetID()]
 		selectScopeMenu.action = action
 		ToggleDropDownMenu(nil, nil, selectScopeMenu, self)
@@ -128,20 +127,12 @@ local options = {
 		end,
 	},
 	{
-		text = "Unbind",
+		text = "Remove key",
 		func = function(self, index)
 			Custom.db.global.keys[index] = nil
 			Custom:UpdateCustomBindings()
 		end,
 	},
-	-- {
-		-- text = "Remove",
-		-- func = function(self, action, scope)
-			-- addon:ClearBinding(action, scope)
-			-- addon.db[scope].actions[action] = nil
-			-- addon:Update()
-		-- end,
-	-- },
 }
 
 local menu = CreateFrame("Frame")
@@ -171,25 +162,12 @@ local function onClick(self, button)
 	end
 end
 
-local function listBindings(key, ...)
-	GameTooltip:AddLine(GetBindingText(key, "KEY_"))
-	for i = 1, select("#", ...) do
-		GameTooltip:AddLine(GetBindingText(select(i, ...), "KEY_"))
-	end
-end
-
 local function onEnter(self)
 	if not self.binding then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	GameTooltip:AddLine((addon:GetActionInfo(self.binding)))
-	listBindings(addon:GetBindingKey(self.binding))
+	GameTooltip:AddLine(addon:GetActionLabel(self.binding), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	GameTooltip:AddLine(GetBindingText(addon:GetBindingKey(self.binding), "KEY_"))
 	GameTooltip:Show()
-	self.showingTooltip = true
-end
-
-local function onLeave(self)
-	GameTooltip:Hide()
-	self.showingTooltip = false
 end
 
 local buttons = {}
@@ -199,7 +177,7 @@ local function createButton()
 	button:SetSize(36, 36)
 	button:SetScript("OnClick", onClick)
 	button:SetScript("OnEnter", onEnter)
-	button:SetScript("OnLeave", onLeave)
+	button:SetScript("OnLeave", GameTooltip_Hide)
 	button:SetScript("OnReceiveDrag", dropAction)
 	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
@@ -231,7 +209,7 @@ end
 local defaults = {
 	global = {
 		keys = {},
-		hiddenButtons = {},
+		-- hiddenButtons = {},
 		gridRows = 4,
 		gridColumns = 3,
 	}
@@ -242,8 +220,8 @@ function Custom:OnInitialize()
 	
 	self.db = addon.db:RegisterNamespace("Custom", defaults)
 	
-	num:SetNumber(self.db.global.gridRows)
-	width:SetNumber(self.db.global.gridColumns)
+	rowsEditbox:SetNumber(self.db.global.gridRows)
+	columnsEditbox:SetNumber(self.db.global.gridColumns)
 	
 	self:UpdateGrid()
 end

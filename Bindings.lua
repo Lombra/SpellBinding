@@ -33,63 +33,12 @@ local function dropAction(self, button)
 	ClearCursor()
 end
 
-local function onClick(self, v)
-	UIDropDownMenu_SetText(SpellBindingCurrentScopeMenu, addon:GetScopeLabel(v) or v)
-	addon:Update()
-end
-
-local button = CreateFrame("Frame", "SpellBindingCurrentScopeMenu", Bindings, "UIDropDownMenuTemplate")
-UIDropDownMenu_SetWidth(button, 96)
-button:SetPoint("TOPLEFT", 0, -29)
--- button:SetText("Characters")
-button.initialize = function(self, level)
-	local info = UIDropDownMenu_CreateInfo()
-	info.text = "All"
-	info.func = onClick
-	info.arg1 = "All"
-	UIDropDownMenu_AddButton(info)
-	
-	for i, v in pairs(addon.db.global.scopes) do
-		local info = UIDropDownMenu_CreateInfo()
-		info.text = addon:GetScopeLabel(v)
-		info.func = onClick
-		info.arg1 = v
-		UIDropDownMenu_AddButton(info)
-	end
-end
-
-local new = CreateFrame("Button", "SpellBindingAddBinding", Bindings, "UIMenuButtonStretchTemplate")
-new:SetWidth(40)
-new:SetPoint("LEFT", button, "RIGHT", -6, 2)
-new:SetText("Add")
-new:SetScript("OnClick", function()
-end)
-
-local function onEditFocusLost(self)
-	self:SetFontObject("ChatFontSmall")
-	self:SetTextColor(0.5, 0.5, 0.5)
-end
-
-local function onEditFocusGained(self)
-	self:SetTextColor(1, 1, 1)
-end
-
-local name = getWidgetName()
-local searchBox = CreateFrame("EditBox", name, Bindings, "SearchBoxTemplate")
-_G[name] = nil
-searchBox:SetSize(128, 20)
-searchBox:SetPoint("TOPRIGHT", -16, -33)
-searchBox:SetFontObject("ChatFontSmall")
-searchBox:SetTextColor(0.5, 0.5, 0.5)
-searchBox:HookScript("OnEditFocusLost", onEditFocusLost)
-searchBox:HookScript("OnEditFocusGained", onEditFocusGained)
-searchBox:SetScript("OnEnterPressed", EditBox_ClearFocus)
-searchBox:SetScript("OnTextChanged", function(self, isUserInput)
-	if not isUserInput then
-		return
-	end
-	local text = self:GetText():lower()
-end)
+-- local new = CreateFrame("Button", "SpellBindingAddBinding", Bindings, "UIMenuButtonStretchTemplate")
+-- new:SetWidth(40)
+-- new:SetPoint("LEFT", button, "RIGHT", -6, 2)
+-- new:SetText("Add")
+-- new:SetScript("OnClick", function()
+-- end)
 
 local overlay = addon:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
@@ -158,13 +107,13 @@ do
 	local BUTTON_OFFSET = 2
 	
 	local options = {
-		{
-			text = "Add binding",
+		-- {
+			-- text = "Add binding",
 			-- func = function(self, action)
 				-- addon:ClearBinding(action)
 				-- addon:Update()
 			-- end,
-		},
+		-- },
 		{
 			text = "Unbind",
 			func = function(self, action, scope)
@@ -214,34 +163,22 @@ do
 		end
 	end
 	
-	local function listBindings(key, ...)
-		GameTooltip:AddLine(GetBindingText(key, "KEY_"))
-		for i = 1, select("#", ...) do
-			GameTooltip:AddLine(GetBindingText(select(i, ...), "KEY_"))
-		end
-	end
-	
 	local function onEnter(self)
 		if self.isHeader then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 28, 0)
-		GameTooltip:AddLine((addon:GetActionInfo(self.binding)))
-		listBindings(addon:GetBindingKey(self.binding))
+		GameTooltip:AddLine(addon:GetActionLabel(self.binding), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+		GameTooltip:AddLine(GetBindingText(addon:GetBindingKey(self.binding), "KEY_"))
 		GameTooltip:Show()
 		self.showingTooltip = true
 	end
 
-	local function onLeave(self)
-		GameTooltip:Hide()
-		self.showingTooltip = false
-	end
-	
 	local function createButton(frame)
 		local button = CreateFrame("Button", nil, frame)
 		button:SetHeight(BUTTON_HEIGHT)
 		button:SetPoint("RIGHT", -5, 0)
 		button:SetScript("OnClick", onClick)
 		button:SetScript("OnEnter", onEnter)
-		button:SetScript("OnLeave", onLeave)
+		button:SetScript("OnLeave", GameTooltip_Hide)
 		button:SetScript("OnReceiveDrag", dropAction)
 		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		button:SetPushedTextOffset(0, 0)
@@ -264,6 +201,7 @@ do
 		
 		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
+		label:SetPoint("RIGHT", button.info, "LEFT")
 		
 		local left = button:CreateTexture(nil, "BACKGROUND")
 		left:SetPoint("LEFT")
@@ -301,11 +239,7 @@ do
 		else
 			local binding = object
 			local name, texture, type = addon:GetActionInfo(binding.action)
-			if type then
-				button.label:SetFormattedText("%s: %s", type, name)
-			else
-				button.label:SetText(name)
-			end
+			button.label:SetText(addon:GetActionLabel(binding.action))
 			button.info:SetText(GetBindingText(addon:GetBindingKey(binding.action) or NOT_BOUND, "KEY_"))
 			button.icon:SetTexture(texture)
 			
@@ -318,7 +252,6 @@ do
 		button.scope = object.scope
 		button.isHeader = isHeader
 		
-		-- if button.showingTooltip then
 		if GameTooltip:IsOwned(button) then
 			if isHeader then
 				GameTooltip:Hide()
@@ -397,19 +330,6 @@ local function listSort(a, b)
 	else
 		return customSort[a.scope] < customSort[b.scope]
 	end
-	-- a, b = items[a], items[b]
-	-- if not (a and b) then return end
-	-- for i, v in ipairs(sortPriority) do
-		-- if a[v] ~= b[v] then
-			-- if sortAscending[v] then
-				-- a, b = b, a
-			-- end
-			-- if not (a[v] and b[v]) then
-				-- return a[v]
-			-- end
-			-- return a[v] > b[v]
-		-- end
-	-- end
 end
 
 local usedActions = {}

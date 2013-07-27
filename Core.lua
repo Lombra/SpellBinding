@@ -41,7 +41,6 @@ local backdrop = {
 
 function addon:CreateOverlay(parent, isBindingOverlay)
 	local overlay = CreateFrame(isBindingOverlay and "Button" or "Frame", nil, parent)
-	-- overlay:SetAllPoints()
 	overlay:SetPoint("TOPLEFT", 0, -21)
 	overlay:SetPoint("BOTTOMRIGHT")
 	overlay:SetFrameStrata("HIGH")
@@ -222,7 +221,7 @@ local scopes = {
 	"race",
 	"class",
 	"char",
-	"profile",
+	-- "profile",
 }
 
 local scopeLabels = {
@@ -234,7 +233,7 @@ local scopeLabels = {
 	class = "Class",
 	char = "Character",
 	profile = "Profile",
-	percharprofile = "Profile (per char)",
+	percharprofile = "Profile",
 }
 
 local defaults = {}
@@ -342,10 +341,17 @@ function addon:UPDATE_BINDINGS()
 	self:Fire("UPDATE_BINDINGS")
 end
 
+local function listBindings(key, ...)
+	GameTooltip:AddLine(GetBindingText(key, "KEY_"))
+	for i = 1, select("#", ...) do
+		GameTooltip:AddLine(GetBindingText(select(i, ...), "KEY_"))
+	end
+end
+
 function addon:GetBindingKey(action2)
 	for i = #self.db.global.scopes, 1, -1 do
 		for key, action in pairs(self:GetBindings(self.db.global.scopes[i])) do
-			if action == action2 then
+			if action == action2 or (action:match("^%u+") == "SPELL" and action2 == action:gsub("%d+", GetSpellInfo)) then
 				return key
 			end
 		end
@@ -389,7 +395,6 @@ local typeLabels = {
 	ITEM = "Item",
 	MACRO = "Macro",
 	CLICK = "Click",
-	-- COMMAND = "",
 }
 
 local getName = {
@@ -411,19 +416,29 @@ local getTexture = {
 	end,
 }
 
-function addon:GetActionInfo(binding)
-	if not binding then return end
-	local type, data = binding:match("^(%u+) (.+)$")
+function addon:GetActionInfo(action)
+	if not action then return end
+	local type, data = action:match("^(%u+) (.+)$")
 	local name, texture
 	if not types[type] then
 		type = "COMMAND"
-		data = binding
+		data = action
 	end
 	local getName = getName[type]
-	name = getName and getName(data) or data or binding
+	name = getName and getName(data) or data or action
 	local getTexture = getTexture[type]
 	texture = getTexture and getTexture(data) or [[Interface\Icons\INV_Misc_QuestionMark]]
 	return name, texture, typeLabels[type]
+end
+
+function addon:GetActionLabel(action)
+	local name, _, type = self:GetActionInfo(action)
+	if type then
+		name = format("%s: %s", type, name)
+	-- else
+		-- button.label:SetText(name)
+	end
+	return name
 end
 
 function addon:GetScopes()
