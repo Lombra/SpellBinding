@@ -116,3 +116,11 @@ function Scoping:CreateScopeMenu(index)
 	
 	return menu
 end
+
+local info = Scoping:CreateFontString(nil, nil, "GameFontHighlightSmall")
+info:SetHeight(30)
+info:SetPoint("BOTTOMLEFT", Scoping.Inset, 7, 4)
+info:SetPoint("BOTTOMRIGHT", Scoping.Inset, -7, 4)
+info:SetJustifyH("LEFT")
+info:SetJustifyV("TOP")
+info:SetText("Set the order in which the bindings of each scope are applied. The bindings of the bottom scope get applied last and thus overrides any conflicting bindings.")
