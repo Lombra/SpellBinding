@@ -187,21 +187,12 @@ do
 		button.icon:SetPoint("LEFT", 3, 0)
 		button.icon:SetSize(16, 16)
 		
-		button.label = button:CreateFontString(nil, nil, "GameFontHighlightLeft")
-		button:SetFontString(button.label)
-		-- button.label = button:CreateFontString(nil, nil, "GameFontNormal")
-		-- button.label:SetWordWrap(false)
-		local label = button.label
-		-- label:SetJustifyH("LEFT")
-		-- label:SetJustifyV("TOP")
-		-- label:SetPoint("TOP", 0, -1)
-		-- label:SetPoint("LEFT", button.icon, "TOPRIGHT", 4, 0)
-		-- label:SetPoint("RIGHT", -21, 0)
-		-- label:SetPoint("BOTTOM", 0, 3)
-		
 		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
-		label:SetPoint("RIGHT", button.info, "LEFT")
+		
+		button.label = button:CreateFontString()
+		button.label:SetPoint("RIGHT", button.info, "LEFT", -4, 0)
+		button.label:SetJustifyH("LEFT")
 		
 		local left = button:CreateTexture(nil, "BACKGROUND")
 		left:SetPoint("LEFT")
@@ -228,31 +219,30 @@ do
 	local function updateButton(button, object)
 		local isHeader = not object.action
 		if isHeader then
-			button.label:SetText(addon:GetScopeLabel(object.scope))
-			
-			button:SetNormalFontObject(GameFontNormal)
 			button:EnableDrawLayer("BACKGROUND")
 			button:SetHighlightTexture(nil)
+			button.label:SetFontObject(GameFontNormal)
+			button.label:SetPoint("LEFT", 11, 0)
 			button.info:SetText("")
 			button.icon:SetTexture("")
-			button.label:SetPoint("LEFT", 11, 0)
-		else
-			local binding = object
-			local name, texture, type = addon:GetActionInfo(binding.action)
-			button.label:SetText(addon:GetActionLabel(binding.action))
-			button.info:SetText(GetBindingText(addon:GetBindingKey(binding.action) or NOT_BOUND, "KEY_"))
-			button.icon:SetTexture(texture)
 			
-			button:SetNormalFontObject(GameFontHighlight)
+			button.label:SetText(addon:GetScopeLabel(object.scope))
+		else
 			button:DisableDrawLayer("BACKGROUND")
 			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
+			button.label:SetFontObject(GameFontHighlight)
 			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+			
+			local name, texture, type = addon:GetActionInfo(object.action)
+			button.label:SetText(addon:GetActionLabel(object.action))
+			button.info:SetText(GetBindingText(addon:GetBindingKey(object.action) or NOT_BOUND, "KEY_"))
+			button.icon:SetTexture(texture)
 		end
 		button.binding = object.action
 		button.scope = object.scope
 		button.isHeader = isHeader
 		
-		if GameTooltip:IsOwned(button) then
+		if button:IsMouseOver() then
 			if isHeader then
 				GameTooltip:Hide()
 			else
