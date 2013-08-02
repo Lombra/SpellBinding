@@ -87,6 +87,8 @@ selectScopeMenu.initialize = function(self)
 	info.notCheckable = true
 	UIDropDownMenu_AddButton(info)
 	
+	local currentScope = addon:GetActiveScopeForKey(self.key)
+	
 	for i, scope in ipairs(addon.db.global.scopes) do
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = addon:GetScopeLabel(scope)
@@ -95,6 +97,12 @@ selectScopeMenu.initialize = function(self)
 		info.arg1 = self.key
 		info.arg2 = self.action
 		info.notCheckable = true
+		if addon.scopePriority[scope] < addon.scopePriority[currentScope] then
+			info.colorCode = GRAY_FONT_COLOR_CODE
+			info.tooltipTitle = "A binding of a higher priority scope is active."
+			info.tooltipText = "A binding of a higher priority scope is active."
+			info.tooltipOnButton = true
+		end
 		UIDropDownMenu_AddButton(info)
 	end
 end
@@ -182,23 +190,21 @@ local function createButton()
 	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
 	
-	button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
-	button.name:SetSize(36, 10)
-	button.name:SetPoint("BOTTOM", 0, 2)
-	
-	local icon = button:CreateTexture()
-	icon:SetSize(36, 36)
-	icon:SetPoint("CENTER", 0, -1)
-	button.icon = icon
-	-- button:SetNormalTexture(icon)
-	
 	local bg = button:CreateTexture(nil, "BACKGROUND")
 	bg:SetSize(45, 45)
 	bg:SetPoint("CENTER", 0, -1)
 	bg:SetTexture([[Interface\Buttons\UI-EmptySlot-Disabled]])
 	bg:SetTexCoord(0.140625, 0.84375, 0.140625, 0.84375)
 	
-	button.hotKey = button:CreateFontString(nil, nil, "NumberFontNormalSmallGray")--, 2)
+	button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
+	button.name:SetSize(36, 10)
+	button.name:SetPoint("BOTTOM", 0, 2)
+	
+	button.icon = button:CreateTexture()
+	button.icon:SetSize(36, 36)
+	button.icon:SetPoint("CENTER", 0, -1)
+	
+	button.hotKey = button:CreateFontString(nil, nil, "NumberFontNormalSmallGray")
 	button.hotKey:SetSize(36, 10)
 	button.hotKey:SetPoint("TOPLEFT", 1, -3)
 	button.hotKey:SetJustifyH("RIGHT")
@@ -238,6 +244,7 @@ function Custom:UpdateGrid()
 		button:SetID(i)
 		button:Show()
 		if i == 1 then
+			-- position the grid in the center of the frame
 			local gridWidth = gridColumns * (button:GetWidth() + XPADDING) - XPADDING
 			local gridHeight = gridRows * (button:GetHeight() + YPADDING) - YPADDING
 			button:SetPoint("TOPLEFT", Custom.Inset, "CENTER", -gridWidth / 2, gridHeight / 2)

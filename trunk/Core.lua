@@ -348,19 +348,67 @@ local function listBindings(key, ...)
 	end
 end
 
-function addon:GetBindingKey(action2)
-	for i = #self.db.global.scopes, 1, -1 do
-		for key, action in pairs(self:GetBindings(self.db.global.scopes[i])) do
-			if action == action2 or (action:match("^%u+") == "SPELL" and action2 == action:gsub("%d+", GetSpellInfo)) then
-				return key
+local bindings = {}
+local sortedBindings = {}
+
+local function sortBindings(a, b)
+	return GetBindingText(a, "KEY_") < GetBindingText(b, "KEY_")
+end
+
+function addon:ListBindingKeys(action)
+	wipe(bindings)
+	wipe(sortedBindings)
+	for i, scope in ipairs(self.db.global.scopes) do
+		for key, action2 in pairs(self:GetBindings(scope)) do
+			if action2 == action then
+				bindings[key] = scope
 			end
 		end
 	end
-	return GetBindingKey(action2)
+	-- return GetBindingKey(action)
+	if action:match("^SPELL %d+$") then
+		action = action:gsub("%d+", GetSpellInfo)
+	end
+	for key, scope in pairs(bindings) do
+		tinsert(sortedBindings, key)
+	end
+	sort(sortedBindings, sortBindings)
+	for i, key in ipairs(sortedBindings) do
+		local color = NORMAL_FONT_COLOR
+		if GetBindingByKey(key) ~= action then
+			color = GRAY_FONT_COLOR
+		end
+		GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), self:GetScopeLabel(bindings[key]), color.r, color.g, color.b, color.r, color.g, color.b)
+	end
+end
+
+function addon:GetBindingKey(action2)
+	local activeKey
+	local scopes = self.db.global.scopes
+	for i = #scopes, 1, -1 do
+		for key, action in pairs(self:GetBindings(scopes[i])) do
+			if action == action2 or (action:match("^%u+") == "SPELL" and action2 == action:gsub("%d+", GetSpellInfo)) then
+				if not activeKey or sortBindings(key, activeKey) then
+					activeKey = key
+				end
+			end
+		end
+	end
+	return activeKey or GetBindingKey(action2)
+end
+
+function addon:GetActiveScopeForKey(key)
+	local scopes = self.db.global.scopes
+	for i = #scopes, 1, -1 do
+		local scope = scopes[i]
+		if self:GetBindings(scope)[key] then
+			return scope
+		end
+	end
 end
 
 function addon:SetBinding(key, action)
-	if action:match("^%u+") == "SPELL" then
+	if action:match("^SPELL %d+$") then
 		action = action:gsub("%d+", GetSpellInfo)
 	end
 	SetOverrideBinding(frame, nil, key, action)

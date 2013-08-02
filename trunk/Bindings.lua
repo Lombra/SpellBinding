@@ -167,18 +167,23 @@ do
 		if self.isHeader then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 28, 0)
 		GameTooltip:AddLine(addon:GetActionLabel(self.binding), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-		GameTooltip:AddLine(GetBindingText(addon:GetBindingKey(self.binding), "KEY_"))
+		addon:ListBindingKeys(self.binding)
 		GameTooltip:Show()
 		self.showingTooltip = true
 	end
 
+	local function onLeave(self)
+		GameTooltip:Hide()
+		self.showingTooltip = false
+	end
+	
 	local function createButton(frame)
 		local button = CreateFrame("Button", nil, frame)
 		button:SetHeight(BUTTON_HEIGHT)
 		button:SetPoint("RIGHT", -5, 0)
 		button:SetScript("OnClick", onClick)
 		button:SetScript("OnEnter", onEnter)
-		button:SetScript("OnLeave", GameTooltip_Hide)
+		button:SetScript("OnLeave", onLeave)
 		button:SetScript("OnReceiveDrag", dropAction)
 		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		button:SetPushedTextOffset(0, 0)
@@ -242,7 +247,7 @@ do
 		button.scope = object.scope
 		button.isHeader = isHeader
 		
-		if button:IsMouseOver() then
+		if button.showingTooltip then
 			if isHeader then
 				GameTooltip:Hide()
 			else
@@ -302,6 +307,7 @@ do
 end
 
 local customSort = {}
+addon.scopePriority = customSort
 
 -- reverse the tables for easier use
 function addon:UpdateSortOrder()
