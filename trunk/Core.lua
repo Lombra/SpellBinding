@@ -387,7 +387,7 @@ function addon:GetBindingKey(action2)
 	local scopes = self.db.global.scopes
 	for i = #scopes, 1, -1 do
 		for key, action in pairs(self:GetBindings(scopes[i])) do
-			if action == action2 or (action:match("^%u+") == "SPELL" and action2 == action:gsub("%d+", GetSpellInfo)) then
+			if action == action2 or self:GetActionString(action) == action2 then
 				if not activeKey or sortBindings(key, activeKey) then
 					activeKey = key
 				end
@@ -407,11 +407,15 @@ function addon:GetActiveScopeForKey(key)
 	end
 end
 
-function addon:SetBinding(key, action)
+function addon:GetActionString(action)
 	if action:match("^SPELL %d+$") then
 		action = action:gsub("%d+", GetSpellInfo)
 	end
-	SetOverrideBinding(frame, nil, key, action)
+	return action
+end
+
+function addon:SetBinding(key, action)
+	SetOverrideBinding(frame, nil, key, self:GetActionString(action))
 end
 
 function addon:AddBinding(key, action, scope)
@@ -482,7 +486,7 @@ end
 function addon:GetActionLabel(action)
 	local name, _, type = self:GetActionInfo(action)
 	if type then
-		name = format("%s: %s", type, name)
+		name = format("%s%s:|r %s", LIGHTYELLOW_FONT_COLOR_CODE, type, name)
 	-- else
 		-- button.label:SetText(name)
 	end

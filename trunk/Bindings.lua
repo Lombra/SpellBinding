@@ -58,7 +58,7 @@ overlay.OnBinding = function(self, keyPressed)
 	currentKey = keyPressed
 	self:SetBindingText(addon:GetActionInfo(currentAction), keyPressed)
 	local previousAction = currentKey and GetBindingByKey(currentKey)
-	if previousAction and previousAction ~= currentAction then
+	if previousAction and previousAction ~= addon:GetActionString(currentAction) then
 		local name, _, type = addon:GetActionInfo(previousAction)
 		self.replace:SetFormattedText("Will replace %s.", name)
 	else
@@ -68,6 +68,7 @@ end
 overlay:SetScript("OnShow", function(self)
 	currentKey = addon:GetBindingKey(currentAction)
 	self:SetBindingText(addon:GetActionInfo(currentAction), currentKey)
+	self.replace:SetText()
 end)
 overlay:SetScript("OnHide", function(self)
 	currentKey = nil
