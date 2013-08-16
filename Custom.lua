@@ -62,18 +62,19 @@ overlay.OnAccept = function(self)
 	Custom:UpdateCustomBindings()
 end
 overlay.OnBinding = function(self, keyPressed)
-	self:SetBindingText("Button "..currentIndex, keyPressed)
+	self:SetBindingKeyText(keyPressed)
 	currentKey = keyPressed
 end
 overlay:SetScript("OnShow", function(self)
-	self:SetBindingText("Button "..currentIndex, Custom.db.global.keys[currentIndex])
+	self:SetBindingActionText("Button "..currentIndex)
+	self:SetBindingKeyText(Custom.db.global.keys[currentIndex])
 end)
 overlay:SetScript("OnHide", function(self)
 	currentKey = nil
 end)
 
 local function onClick(self, key, action)
-	addon:AddBinding(key, action, self.value)
+	addon:SetPrimaryBinding(action, self.value, key)
 end
 
 local selectScopeMenu = CreateFrame("Frame")
@@ -97,7 +98,7 @@ selectScopeMenu.initialize = function(self)
 		info.arg1 = self.key
 		info.arg2 = self.action
 		info.notCheckable = true
-		if addon.scopePriority[scope] < addon.scopePriority[currentScope] then
+		if currentScope and (addon.scopePriority[scope] < addon.scopePriority[currentScope]) then
 			info.colorCode = GRAY_FONT_COLOR_CODE
 			info.tooltipTitle = "A binding of a higher priority scope is active."
 			info.tooltipText = "A binding of a higher priority scope is active."
@@ -173,9 +174,7 @@ end
 local function onEnter(self)
 	if not self.binding then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	GameTooltip:AddLine(addon:GetActionLabel(self.binding), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-	GameTooltip:AddLine(GetBindingText(addon:GetBindingKey(self.binding), "KEY_"))
-	GameTooltip:Show()
+	addon:ListBindingKeys(self.binding)
 end
 
 local buttons = {}
@@ -269,6 +268,6 @@ function Custom:UpdateCustomBindings()
 		local name, texture = addon:GetActionInfo(binding)
 		button.name:SetText(name)
 		button.icon:SetTexture(texture)
-		button.binding = binding
+		button.binding = addon:GetActionStringReverse(binding)
 	end
 end

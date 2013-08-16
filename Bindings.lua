@@ -7,7 +7,7 @@ local function getWidgetName()
 	return name
 end
 
-local currentKey, currentAction, currentScope, previousScope
+local currentKey, currentAction, currentScope, newScope, isSecondary
 local list
 
 local Bindings = addon:NewModule("Bindings")
@@ -27,51 +27,136 @@ local function dropAction(self, button)
 		elseif type == "macro" then
 			action = "MACRO "..GetMacroInfo(data)
 		end
-		addon:AddBinding(nil, action, self.scope or "global")
+		addon:SetPrimaryBinding(action, self.scope or "global")
 		Bindings:UpdateList()
 	end
 	ClearCursor()
 end
 
--- local new = CreateFrame("Button", "SpellBindingAddBinding", Bindings, "UIMenuButtonStretchTemplate")
--- new:SetWidth(40)
--- new:SetPoint("LEFT", button, "RIGHT", -6, 2)
--- new:SetText("Add")
--- new:SetScript("OnClick", function()
--- end)
+do	-- click binding
+	local currentFocus
+	
+	local clickBind = addon:CreateOverlay(Bindings)
+	
+	local info = clickBind:CreateFontString(nil, nil, "GameFontNormal")
+	info:SetPoint("CENTER", 0, 24)
+	info:SetText("Press Escape to cancel")
+	
+	local mouseButtons = {
+		"LeftButton",
+		"RightButton",
+		"MiddleButton",
+	}
+	
+	local mouseFocusOverlay = CreateFrame("Frame", nil, UIParent)
+	mouseFocusOverlay:SetFrameStrata("FULLSCREEN_DIALOG")
+	mouseFocusOverlay:SetBackdrop({
+		bgFile = [[Interface\Buttons\WHITE8X8]],
+		edgeFile = [[Interface\Buttons\WHITE8X8]],
+		edgeSize = 2,
+	})
+	mouseFocusOverlay:SetBackdropColor(1, 1, 1, 0.2)
+	mouseFocusOverlay:Hide()
+	
+	local function cancelFrameSelection()
+		clickBind:Hide()
+		mouseFocusOverlay:Hide()
+	end
+	
+	clickBind:SetScript("OnUpdate", function(self)
+		local focus = GetMouseFocus()
+		local focusName = focus and focus:GetName()
+		local isButton = focus and focus:IsObjectType("Button")
+		local isValid = focusName and isButton
+		
+		if focus ~= currentFocus then
+			currentFocus = focus
+			mouseFocusOverlay:SetAllPoints(focus)
+			local isWorldFrame = focus == WorldFrame
+			mouseFocusOverlay:SetShown(not isWorldFrame)
+			if isWorldFrame then
+				-- self.text:SetText("Select frame")
+				-- self.text:SetFontObject("GameFontHighlightLarge")
+			else
+				if isValid then
+					self.text:SetText(focusName)
+					self.text:SetFontObject("GameFontHighlightLarge")
+					mouseFocusOverlay:SetBackdropBorderColor(0, 1, 0)
+				else
+					if not focusName then
+						self.text:SetText("Frame is unnamed")
+					elseif not isButton then
+						self.text:SetText(focusName.." is not a button")
+					end
+					self.text:SetFontObject("GameFontRedLarge")
+					mouseFocusOverlay:SetBackdropBorderColor(1, 0, 0)
+				end
+			end
+		end
+		if isValid then
+			for i = 1, 31 do
+				local button = mouseButtons[i] or "Button"..i
+				if IsMouseButtonDown(button) then
+					addon:SetPrimaryBinding(format("CLICK %s:%s", currentFocus:GetName(), button), "global")
+					Bindings:UpdateList()
+					cancelFrameSelection()
+					break
+				end
+			end
+		end
+	end)
+	
+	clickBind:SetScript("OnKeyDown", function(self, keyPressed)
+		if GetBindingFromClick(keyPressed) == "TOGGLEGAMEMENU" then
+			cancelFrameSelection()
+		end
+	end)
+
+	local new = CreateFrame("Button", "SpellBindingAddBinding", Bindings, "UIMenuButtonStretchTemplate")
+	new:SetWidth(80)
+	new:SetPoint("TOPLEFT", 8, -32)
+	new:SetText("Bind click")
+	new:SetScript("OnClick", function()
+		-- info:SetText("Select frame")
+		-- mouseFocusOverlay:Show()
+		clickBind:Show()
+	end)
+end
 
 local overlay = addon:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
-	if not currentKey then
-		-- return
+	if newScope ~= currentScope then
+		addon:ClearBindings(currentAction, currentScope)
 	end
-	if previousScope ~= currentScope then
-		-- local key = addon:GetBindingKey(currentAction)
-		-- if not key or key == currentKey then
-			addon:ClearBinding(currentAction, previousScope)
-			addon:GetActions(previousScope)[currentAction] = nil
-		-- end
+	if isSecondary then
+		addon:SetSecondaryBinding(currentAction, newScope, currentKey)
+	else
+		addon:SetPrimaryBinding(currentAction, newScope, currentKey)
 	end
-	addon:AddBinding(currentKey, currentAction, currentScope)
 end
 overlay.OnBinding = function(self, keyPressed)
 	currentKey = keyPressed
-	self:SetBindingText(addon:GetActionInfo(currentAction), keyPressed)
+	self:SetBindingKeyText(keyPressed)
 	local previousAction = currentKey and GetBindingByKey(currentKey)
 	if previousAction and previousAction ~= addon:GetActionString(currentAction) then
-		local name, _, type = addon:GetActionInfo(previousAction)
-		self.replace:SetFormattedText("Will replace %s.", name)
+		self.replace:SetFormattedText("Will replace %s.", addon:GetActionLabel(previousAction, true))
 	else
 		self.replace:SetText()
 	end
 end
 overlay:SetScript("OnShow", function(self)
-	currentKey = addon:GetBindingKey(currentAction)
-	self:SetBindingText(addon:GetActionInfo(currentAction), currentKey)
+	if isSecondary then
+		currentKey = addon:GetSecondaryBinding(currentAction, currentScope)
+	else
+		currentKey = addon:GetPrimaryBinding(currentAction, currentScope)
+	end
+	self:SetBindingActionText(addon:GetActionLabel(currentAction))
+	self:SetBindingKeyText(currentKey ~= true and currentKey)
 	self.replace:SetText()
 end)
 overlay:SetScript("OnHide", function(self)
 	currentKey = nil
+	isSecondary = nil
 end)
 
 overlay.replace = overlay:CreateFontString(nil, nil, "GameFontNormal")
@@ -80,27 +165,27 @@ overlay.replace:SetTextColor(RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.
 
 local function onClick(self, scope)
 	UIDropDownMenu_SetText(self.owner, addon:GetScopeLabel(scope))
-	currentScope = scope
+	newScope = scope
 end
 
-local scope = CreateFrame("Frame", "SpellBindingSelectScopeMenu", overlay, "UIDropDownMenuTemplate")
-UIDropDownMenu_SetWidth(scope, 128)
-UIDropDownMenu_JustifyText(scope, "LEFT")
-scope:SetPoint("BOTTOMLEFT", 0, 8)
-scope.initialize = function(self)
+local scopeMenu = CreateFrame("Frame", "SpellBindingSelectScopeMenu", overlay, "UIDropDownMenuTemplate")
+UIDropDownMenu_SetWidth(scopeMenu, 128)
+UIDropDownMenu_JustifyText(scopeMenu, "LEFT")
+scopeMenu:SetPoint("BOTTOMLEFT", 0, 8)
+scopeMenu.initialize = function(self)
 	for i, v in pairs(addon.db.global.scopes) do
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = addon:GetScopeLabel(v)
 		info.func = onClick
 		info.arg1 = v
-		info.checked = (v == currentScope)
+		info.checked = (v == newScope)
 		info.owner = self
 		UIDropDownMenu_AddButton(info)
 	end
 end
 
-local label = scope:CreateFontString(nil, nil, "GameFontNormalSmall")
-label:SetPoint("BOTTOMLEFT", scope, "TOPLEFT", 16, 3)
+local label = scopeMenu:CreateFontString(nil, nil, "GameFontNormalSmall")
+label:SetPoint("BOTTOMLEFT", scopeMenu, "TOPLEFT", 16, 3)
 label:SetText("Scope")
 
 do
@@ -108,26 +193,47 @@ do
 	local BUTTON_OFFSET = 2
 	
 	local options = {
-		-- {
-			-- text = "Add binding",
-			-- func = function(self, action)
-				-- addon:ClearBinding(action)
-				-- addon:Update()
-			-- end,
-		-- },
+		{
+			text = "Set secondary binding",
+			func = function(self, action, scope)
+				currentAction = action
+				currentScope = scope
+				newScope = scope
+				isSecondary = true
+				scopeMenu:Hide()
+				overlay:Show()
+			end,
+			primary = true,
+		},
 		{
 			text = "Unbind",
 			func = function(self, action, scope)
-				addon:ClearBinding(action, scope)
-				Bindings:UpdateList()
+				addon:ClearBindings(action, scope)
+				addon:ApplyBindings()
 			end,
+		},
+		{
+			text = "Unbind primary binding",
+			func = function(self, action, scope)
+				addon:ClearBinding(action, scope)
+				addon:ApplyBindings()
+			end,
+			secondary = true,
+		},
+		{
+			text = "Unbind secondary binding",
+			func = function(self, action, scope)
+				addon:ClearBinding(action, scope, true)
+				addon:ApplyBindings()
+			end,
+			secondary = true,
 		},
 		{
 			text = "Remove",
 			func = function(self, action, scope)
-				addon:ClearBinding(action, scope)
-				addon.db[scope].actions[action] = nil
-				Bindings:UpdateList()
+				addon:ClearBindings(action, scope)
+				addon.db[scope].bindings[action] = nil
+				addon:ApplyBindings()
 			end,
 		},
 	}
@@ -136,7 +242,10 @@ do
 	menu.displayMode = "MENU"
 	menu.initialize = function(self)
 		local button = UIDROPDOWNMENU_MENU_VALUE
+		local key1, key2 = addon:GetBindings(button.binding, button.scope)
+		
 		for i, option in ipairs(options) do
+			if (not option.primary or key1) and (not option.secondary or key2) then
 			local info = UIDropDownMenu_CreateInfo()
 			info.text = option.text
 			info.func = option.func
@@ -144,6 +253,7 @@ do
 			info.arg2 = button.scope
 			info.notCheckable = true
 			UIDropDownMenu_AddButton(info)
+			end
 		end
 	end
 	
@@ -155,9 +265,10 @@ do
 		if self.isHeader then return end
 		if button == "LeftButton" then
 			currentAction = self.binding
-			previousScope = self.scope
 			currentScope = self.scope
-			UIDropDownMenu_SetText(scope, addon:GetScopeLabel(currentScope))
+			newScope = self.scope
+			UIDropDownMenu_SetText(scopeMenu, addon:GetScopeLabel(currentScope))
+			scopeMenu:Show()
 			overlay:Show()
 		else
 			ToggleDropDownMenu(nil, self, menu, self, 0, 0)
@@ -167,9 +278,7 @@ do
 	local function onEnter(self)
 		if self.isHeader then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 28, 0)
-		GameTooltip:AddLine(addon:GetActionLabel(self.binding), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
 		addon:ListBindingKeys(self.binding)
-		GameTooltip:Show()
 		self.showingTooltip = true
 	end
 
@@ -338,12 +447,13 @@ function Bindings:UpdateList()
 	for i = #scopes, 1, -1 do
 		local scope = scopes[i]
 		if addon:IsScopeUsed(scope) then
-			if next(addon:GetActions(scope)) then
+			local bindings = addon:GetBindingsForScope(scope)
+			if next(bindings) then
 				tinsert(list, {
 					scope = scope,
 				})
 			end
-			for action in pairs(addon:GetActions(scope)) do
+			for action in pairs(bindings) do
 				-- don't duplicate if included in more than one scope
 				if not usedActions[action] then
 					tinsert(list, {
