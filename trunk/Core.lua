@@ -46,13 +46,20 @@ function addon:CreateOverlay(parent, isBindingOverlay)
 	overlay:SetFrameStrata("HIGH")
 	overlay:SetBackdrop(backdrop)
 	overlay:SetBackdropColor(0, 0, 0, 0.7)
+	overlay:EnableMouse(true)
 	overlay:Hide()
+	
+	overlay.text = overlay:CreateFontString(nil, nil, "GameFontHighlightLarge")
+	overlay.text:SetPoint("CENTER")
 	
 	return overlay
 end
 
-local function setBindingText(self, action, key)
+local function setBindingActionText(self, action)
 	self.actionName:SetFormattedText("%s", action)
+end
+
+local function setBindingKeyText(self, key)
 	self.key:SetFormattedText("Current key: %s", GetBindingText(key or NOT_BOUND, "KEY_"))
 end
 
@@ -124,7 +131,8 @@ end
 function addon:CreateBindingOverlay(parent)
 	local overlay = self:CreateOverlay(parent, true)
 	overlay:RegisterForClicks("AnyUp")
-	overlay.SetBindingText = setBindingText
+	overlay.SetBindingActionText = setBindingActionText
+	overlay.SetBindingKeyText = setBindingKeyText
 	
 	for event, handler in pairs(handlers) do
 		overlay:SetScript(event, handler)
@@ -134,8 +142,7 @@ function addon:CreateBindingOverlay(parent)
 	info:SetPoint("CENTER", 0, 24)
 	info:SetText("Press a key to bind")
 	
-	overlay.actionName = overlay:CreateFontString(nil, nil, "GameFontNormalLarge")
-	overlay.actionName:SetPoint("CENTER")
+	overlay.actionName = overlay.text
 	
 	overlay.key = overlay:CreateFontString(nil, nil, "GameFontNormal")
 	overlay.key:SetPoint("CENTER", 0, -24)
@@ -152,9 +159,7 @@ end
 
 local combatBlock = addon:CreateOverlay(frame)
 
-local info = combatBlock:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge", 1)
-info:SetPoint("CENTER")
-info:SetText("Keybinding blocked during combat")
+combatBlock.text:SetText("Keybinding blocked during combat")
 
 local tabs = {}
 
@@ -240,8 +245,8 @@ local defaults = {}
 
 for i, scope in ipairs(scopes) do
 	defaults[scope] = {
-		actions = {},
 		bindings = {},
+		secondaryBindings = {},
 	}
 end
 
@@ -254,8 +259,8 @@ tinsert(scopes, "percharprofile")
 
 local percharDefaults = {
 	profile = {
-		actions = {},
 		bindings = {},
+		secondaryBindings = {},
 	}
 }
 
@@ -289,6 +294,20 @@ function addon:ADDON_LOADED(addon)
 	
 	self.db.percharprofile = self.perchardb.profile
 	
+	do	-- upgrade data (remove for beta/release)
+		for i, scope in ipairs(scopes) do
+			scope = self.db[scope]
+			if scope.actions then
+				local extraBindings = scope.bindings
+				scope.bindings = scope.actions
+				scope.actions = nil
+				for key, action in pairs(extraBindings) do
+					scope.bindings[action] = key
+				end
+			end
+		end
+	end
+	
 	self:Fire("OnInitialize")
 	
 	self:UpdateSortOrder()
@@ -307,6 +326,20 @@ function addon:PLAYER_REGEN_ENABLED()
 end
 
 function addon:RefreshConfig()
+	do	-- upgrade data (remove for beta/release)
+		for i, scope in ipairs(scopes) do
+			scope = self.db[scope]
+			if scope.actions then
+				local extraBindings = scope.bindings
+				scope.bindings = scope.actions
+				scope.actions = nil
+				for key, action in pairs(extraBindings) do
+					scope.bindings[action] = key
+				end
+			end
+		end
+	end
+	
 	self.db.percharprofile = self.perchardb.profile
 	self:ApplyBindings()
 end
@@ -329,80 +362,157 @@ end
 
 function addon:ApplyBindings()
 	ClearOverrideBindings(frame)
-	for i, v in ipairs(self.db.global.scopes) do
-		for key, action in pairs(self:GetBindings(v)) do
-			self:SetBinding(key, action)
+	for i, scope in ipairs(self.db.global.scopes) do
+		scope = self.db[scope]
+		for action, key in pairs(scope.bindings) do
+			self:ApplyBinding(key, action)
+			self:ApplyBinding(scope.secondaryBindings[action], action)
 		end
 	end
 	self:Fire("UPDATE_BINDINGS")
+end
+
+function addon:ApplyBinding(key, action)
+	if not (type(key) == "string" and action) then return end
+	SetOverrideBinding(frame, nil, key, self:GetActionString(action))
+end
+
+function addon:SetBinding(action, scope, key, forcePrimary)
+	if not key and self.db[scope].bindings[action] then
+		return
+	end
+	
+	if forcePrimary or type(self.db[scope].bindings[action]) ~= "string" then
+		self.db[scope].bindings[action] = key or true
+	else
+		self.db[scope].secondaryBindings[action] = key
+	end
+	self:ApplyBindings()
+end
+
+function addon:SetPrimaryBinding(action, scope, key)
+	key = key or self.db[scope].bindings[action]
+	
+	local action1, action2 = self:GetBindingsByKey(key, scope)
+	if action1 ~= action then
+		self:ClearBinding(action1, scope)
+	end
+	self:ClearBinding(action2, scope, true)
+	
+	self.db[scope].bindings[action] = key or true
+	-- self:SetBinding(action, scope, key)
+	self:ApplyBindings()
+end
+
+function addon:SetSecondaryBinding(action, scope, key)
+	-- key = key or self.db[scope].bindings[action]
+	
+	local action1, action2 = self:GetBindingsByKey(key, scope)
+	if action1 ~= action then
+		self:ClearBinding(action1, scope)
+	end
+	if action2 ~= action then
+		self:ClearBinding(action2, scope, true)
+	end
+	
+	self.db[scope].secondaryBindings[action] = key
+	-- self:SetBinding(action, scope, key)
+	self:ApplyBindings()
+end
+
+function addon:ClearBindings(action, scope)
+	scope = self.db[scope]
+	scope.bindings[action] = true
+	scope.secondaryBindings[action] = nil
+end
+
+function addon:ClearBinding(action, scope, secondary)
+	if not action then return end
+	scope = self.db[scope]
+	if not secondary then
+		-- if the primary binding was cleared, use the secondary binding as primary
+		scope.bindings[action] = scope.secondaryBindings[action] or true
+	end
+	scope.secondaryBindings[action] = nil
 end
 
 function addon:UPDATE_BINDINGS()
 	self:Fire("UPDATE_BINDINGS")
 end
 
-local function listBindings(key, ...)
-	GameTooltip:AddLine(GetBindingText(key, "KEY_"))
-	for i = 1, select("#", ...) do
-		GameTooltip:AddLine(GetBindingText(select(i, ...), "KEY_"))
-	end
-end
-
 local bindings = {}
-local sortedBindings = {}
 
-local function sortBindings(a, b)
-	return GetBindingText(a, "KEY_") < GetBindingText(b, "KEY_")
+function addon:GetBindingKeys(action)
+	wipe(bindings)
+	for i, scope in ipairs(self.db.global.scopes) do
+		local key1, key2 = self:GetBindings(action, scope)
+		if key1 then
+			tinsert(bindings, {key = key1, scope = scope})
+		end
+		if key2 then
+			tinsert(bindings, {key = key2, scope = scope})
+		end
+	end
+	action = self:GetActionString(action)
+	for i = 1, select("#", GetBindingKey(action)) do
+		tinsert(bindings, {key = select(i, GetBindingKey(action))})
+	end
+	return bindings
 end
 
 function addon:ListBindingKeys(action)
-	wipe(bindings)
-	wipe(sortedBindings)
-	for i, scope in ipairs(self.db.global.scopes) do
-		for key, action2 in pairs(self:GetBindings(scope)) do
-			if action2 == action then
-				bindings[key] = scope
-			end
-		end
-	end
-	-- return GetBindingKey(action)
-	if action:match("^SPELL %d+$") then
-		action = action:gsub("%d+", GetSpellInfo)
-	end
-	for key, scope in pairs(bindings) do
-		tinsert(sortedBindings, key)
-	end
-	sort(sortedBindings, sortBindings)
-	for i, key in ipairs(sortedBindings) do
+	GameTooltip:AddLine(addon:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	local bindings = self:GetBindingKeys(action)
+	for i, binding in ipairs(bindings) do
+		local key = binding.key
 		local color = NORMAL_FONT_COLOR
-		if GetBindingByKey(key) ~= action then
+		if GetBindingByKey(key) ~= self:GetActionString(action) then
 			color = GRAY_FONT_COLOR
 		end
-		GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), self:GetScopeLabel(bindings[key]), color.r, color.g, color.b, color.r, color.g, color.b)
+		GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), self:GetScopeLabel(binding.scope), color.r, color.g, color.b, color.r, color.g, color.b)
 	end
+	GameTooltip:Show()
 end
 
-function addon:GetBindingKey(action2)
+function addon:GetBindingKey(action)
 	local activeKey
 	local scopes = self.db.global.scopes
 	for i = #scopes, 1, -1 do
-		for key, action in pairs(self:GetBindings(scopes[i])) do
-			if action == action2 or self:GetActionString(action) == action2 then
-				if not activeKey or sortBindings(key, activeKey) then
-					activeKey = key
-				end
-			end
+		local scope = self.db[scopes[i]]
+		local key = scope.bindings[action] or scope.secondaryBindings[action]
+		if type(key) == "string" then
+			return key
 		end
 	end
-	return activeKey or GetBindingKey(action2)
+	return GetBindingKey(action)
+end
+
+function addon:GetBindingsByKey(key, scope)
+	local action1, action2
+	scope = self.db[scope]
+	for action, key2 in pairs(scope.bindings) do
+		if key2 == key then
+			action1 = action
+			break
+		end
+	end
+	for action, key2 in pairs(scope.secondaryBindings) do
+		if key2 == key then
+			action2 = action
+			break
+		end
+	end
+	return action1, action2
 end
 
 function addon:GetActiveScopeForKey(key)
 	local scopes = self.db.global.scopes
 	for i = #scopes, 1, -1 do
 		local scope = scopes[i]
-		if self:GetBindings(scope)[key] then
-			return scope
+		for action, key2 in pairs(self:GetBindingsForScope(scope)) do
+			if key2 == key then
+				return scope
+			end
 		end
 	end
 end
@@ -414,25 +524,14 @@ function addon:GetActionString(action)
 	return action
 end
 
-function addon:SetBinding(key, action)
-	SetOverrideBinding(frame, nil, key, self:GetActionString(action))
-end
-
-function addon:AddBinding(key, action, scope)
-	self.db[scope].actions[action] = true
-	if key then
-		self.db[scope].bindings[key] = action
-		self:ApplyBindings()
-	end
-end
-
-function addon:ClearBinding(action2, scope)
-	for key, action in pairs(self:GetBindings(scope)) do
-		if action == action2 then
-			addon.db[scope].bindings[key] = nil
+function addon:GetActionStringReverse(action)
+	for i, scope in ipairs(self.db.global.scopes) do
+		for action2 in pairs(self.db[scope].bindings) do
+			if self:GetActionString(action2) == action then
+				return action2
+			end
 		end
 	end
-	self:ApplyBindings()
 end
 
 local types = {
@@ -483,12 +582,10 @@ function addon:GetActionInfo(action)
 	return name, texture, typeLabels[type]
 end
 
-function addon:GetActionLabel(action)
+function addon:GetActionLabel(action, noColor)
 	local name, _, type = self:GetActionInfo(action)
 	if type then
-		name = format("%s%s:|r %s", LIGHTYELLOW_FONT_COLOR_CODE, type, name)
-	-- else
-		-- button.label:SetText(name)
+		name = format("%s%s:|r %s", noColor and "" or LIGHTYELLOW_FONT_COLOR_CODE, type, name)
 	end
 	return name
 end
@@ -501,10 +598,20 @@ function addon:GetScopeLabel(scope)
 	return scopeLabels[scope]
 end
 
-function addon:GetActions(scope)
-	return self.db[scope].actions
+function addon:GetBindingsForScope(scope)
+	return self.db[scope].bindings
 end
 
-function addon:GetBindings(scope)
-	return self.db[scope].bindings
+function addon:GetBindings(action, scope)
+	scope = self.db[scope]
+	local key = scope.bindings[action]
+	return key ~= true and key, scope.secondaryBindings[action]
+end
+
+function addon:GetPrimaryBinding(action, scope)
+	return self.db[scope].bindings[action]
+end
+
+function addon:GetSecondaryBinding(action, scope)
+	return self.db[scope].secondaryBindings[action]
 end
