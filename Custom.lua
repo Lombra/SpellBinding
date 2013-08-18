@@ -4,57 +4,38 @@ local Custom = addon:NewModule("Custom")
 
 local currentKey, currentIndex
 
-local function onEnterPressed(self)
-	local value = self:GetNumber()
-	if value < 1 or value > self.max then
-		return
-	end
-	Custom.db.global[self.setting] = self:GetNumber()
+local function onValueChanged(self, value, isUserInput)
+	self.currentValue:SetText(value)
+	if not isUserInput then return end
+	Custom.db.global[self.setting] = value
 	Custom:UpdateGrid()
-	self:ClearFocus()
 end
 
-local function onEscapePressed(self)
-	self:SetNumber(Custom.db.global[self.setting])
-	self:ClearFocus()
-end
-
-local function onTextChanged(self, isUserInput)
-	local value = self:GetNumber()
-	if value < 1 or value > self.max then
-		self:SetTextColor(1, 0, 0)
-	else
-		self:SetTextColor(1, 1, 1)
-	end
-end
-
-local function createEditbox(name)
-	local editbox = CreateFrame("EditBox", name, Custom, "InputBoxTemplate")
+local function createSlider(name, maxValue)
+	local slider = CreateFrame("Slider", name, Custom, "OptionsSliderTemplate")
 	_G[name] = nil
-	editbox:SetSize(32, 20)
-	editbox:SetFontObject("ChatFontSmall")
-	editbox:SetAutoFocus(false)
-	editbox:SetScript("OnEnterPressed", onEnterPressed)
-	editbox:SetScript("OnEscapePressed", onEscapePressed)
-	editbox:SetScript("OnTextChanged", onTextChanged)
-	editbox.label = editbox:CreateFontString(nil, nil, "GameFontNormalSmall")
-	editbox.label:SetPoint("BOTTOMLEFT", editbox, "TOPLEFT", -4, 0)
-	return editbox
+	slider:SetWidth(96)
+	slider:SetScript("OnValueChanged", onValueChanged)
+	slider:SetMinMaxValues(1, maxValue)
+	slider:SetValueStep(1)
+	slider.label = _G[name.."Text"]
+	_G[name.."Low"]:SetText(1)
+	_G[name.."High"]:SetText(maxValue)
+	-- slider.label:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", -4, 0)
+	slider.currentValue = slider:CreateFontString(nil, "BACKGROUND", "GameFontHighlightSmall")
+	slider.currentValue:SetPoint("CENTER", 0, -12)
+	return slider
 end
 
-local rowsEditbox = createEditbox(addonName.."GridRows")
-rowsEditbox:SetPoint("TOPLEFT", 16, -36)
-rowsEditbox:SetNumeric(true)
-rowsEditbox.setting = "gridRows"
-rowsEditbox.max = 8
-rowsEditbox.label:SetText("Rows")
+local rowsSlider = createSlider(addonName.."GridRows", 8)
+rowsSlider:SetPoint("TOPLEFT", 16, -36)
+rowsSlider.setting = "gridRows"
+rowsSlider.label:SetText("Rows")
 
-local columnsEditbox = createEditbox(addonName.."GridColumns")
-columnsEditbox:SetPoint("LEFT", rowsEditbox, "RIGHT", 8, 0)
-columnsEditbox:SetNumeric(true)
-columnsEditbox.setting = "gridColumns"
-columnsEditbox.max = 7
-columnsEditbox.label:SetText("Columns")
+local columnsSlider = createSlider(addonName.."GridColumns", 7)
+columnsSlider:SetPoint("LEFT", rowsSlider, "RIGHT", 16, 0)
+columnsSlider.setting = "gridColumns"
+columnsSlider.label:SetText("Columns")
 
 local overlay = addon:CreateBindingOverlay(Custom)
 overlay.OnAccept = function(self)
@@ -88,7 +69,7 @@ selectScopeMenu.initialize = function(self)
 	info.notCheckable = true
 	UIDropDownMenu_AddButton(info)
 	
-	local currentScope = addon:GetActiveScopeForKey(self.key)
+	local currentAction, activeScope = addon:GetConflictState(self.key)
 	
 	for i, scope in ipairs(addon.db.global.scopes) do
 		local info = UIDropDownMenu_CreateInfo()
@@ -98,10 +79,11 @@ selectScopeMenu.initialize = function(self)
 		info.arg1 = self.key
 		info.arg2 = self.action
 		info.notCheckable = true
-		if currentScope and (addon.scopePriority[scope] < addon.scopePriority[currentScope]) then
-			info.colorCode = GRAY_FONT_COLOR_CODE
-			info.tooltipTitle = "A binding of a higher priority scope is active."
-			info.tooltipText = "A binding of a higher priority scope is active."
+		if currentAction then
+			local conflict, color = addon:GetConflictText(activeScope, scope)
+			info.colorCode = color
+			info.tooltipTitle = format(conflict, addon:GetActionLabel(currentAction))
+			-- info.tooltipText = format(conflict, currentAction)
 			info.tooltipOnButton = true
 		end
 		UIDropDownMenu_AddButton(info)
@@ -122,6 +104,7 @@ local function dropAction(self, button)
 		end
 		selectScopeMenu.key = Custom.db.global.keys[self:GetID()]
 		selectScopeMenu.action = action
+		HideDropDownMenu(1)
 		ToggleDropDownMenu(nil, nil, selectScopeMenu, self)
 	end
 	ClearCursor()
@@ -225,8 +208,8 @@ function Custom:OnInitialize()
 	
 	self.db = addon.db:RegisterNamespace("Custom", defaults)
 	
-	rowsEditbox:SetNumber(self.db.global.gridRows)
-	columnsEditbox:SetNumber(self.db.global.gridColumns)
+	rowsSlider:SetValue(self.db.global.gridRows)
+	columnsSlider:SetValue(self.db.global.gridColumns)
 	
 	self:UpdateGrid()
 end

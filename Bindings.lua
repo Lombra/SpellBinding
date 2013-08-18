@@ -75,8 +75,8 @@ do	-- click binding
 			local isWorldFrame = focus == WorldFrame
 			mouseFocusOverlay:SetShown(not isWorldFrame)
 			if isWorldFrame then
-				-- self.text:SetText("Select frame")
-				-- self.text:SetFontObject("GameFontHighlightLarge")
+				self.text:SetText("Select frame")
+				self.text:SetFontObject("GameFontHighlightLarge")
 			else
 				if isValid then
 					self.text:SetText(focusName)
@@ -117,8 +117,6 @@ do	-- click binding
 	new:SetPoint("TOPLEFT", 8, -32)
 	new:SetText("Bind click")
 	new:SetScript("OnClick", function()
-		-- info:SetText("Select frame")
-		-- mouseFocusOverlay:Show()
 		clickBind:Show()
 	end)
 end
@@ -137,9 +135,9 @@ end
 overlay.OnBinding = function(self, keyPressed)
 	currentKey = keyPressed
 	self:SetBindingKeyText(keyPressed)
-	local previousAction = currentKey and GetBindingByKey(currentKey)
+	local previousAction, activeScope = addon:GetConflictState(currentKey)
 	if previousAction and previousAction ~= addon:GetActionString(currentAction) then
-		self.replace:SetFormattedText("Will replace %s.", addon:GetActionLabel(previousAction, true))
+		self.replace:SetFormattedText(addon:GetConflictText(activeScope, newScope), addon:GetActionLabel(previousAction, true))
 	else
 		self.replace:SetText()
 	end
