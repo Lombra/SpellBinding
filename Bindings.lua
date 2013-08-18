@@ -125,6 +125,7 @@ local overlay = addon:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
 	if newScope ~= currentScope then
 		addon:ClearBindings(currentAction, currentScope)
+		addon.db[currentScope].bindings[currentAction] = nil
 	end
 	if isSecondary then
 		addon:SetSecondaryBinding(currentAction, newScope, currentKey)
@@ -300,7 +301,7 @@ do
 		button.icon:SetPoint("LEFT", 3, 0)
 		button.icon:SetSize(16, 16)
 		
-		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
+		button.info = button:CreateFontString()
 		button.info:SetPoint("RIGHT", -3, 0)
 		
 		button.label = button:CreateFontString()
@@ -343,12 +344,15 @@ do
 		else
 			button:DisableDrawLayer("BACKGROUND")
 			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
-			button.label:SetFontObject(GameFontHighlight)
 			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
 			
+			local key = addon:GetBindingKey(object.action)
+			local isInactive = key and GetBindingByKey(key) ~= addon:GetActionString(object.action)
 			local name, texture, type = addon:GetActionInfo(object.action)
+			button.label:SetFontObject(isInactive and GameFontDisable or GameFontHighlight)
 			button.label:SetText(addon:GetActionLabel(object.action))
-			button.info:SetText(GetBindingText(addon:GetBindingKey(object.action) or NOT_BOUND, "KEY_"))
+			button.info:SetFontObject(isInactive and GameFontDisableSmall or GameFontHighlightSmall)
+			button.info:SetText(GetBindingText(key or NOT_BOUND, "KEY_"))
 			button.icon:SetTexture(texture)
 		end
 		button.binding = object.action
