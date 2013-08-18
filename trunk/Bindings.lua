@@ -301,7 +301,7 @@ do
 		button.icon:SetPoint("LEFT", 3, 0)
 		button.icon:SetSize(16, 16)
 		
-		button.info = button:CreateFontString()
+		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
 		
 		button.label = button:CreateFontString()
