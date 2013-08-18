@@ -393,11 +393,10 @@ end
 function addon:SetPrimaryBinding(action, scope, key)
 	key = key or self.db[scope].bindings[action]
 	
-	local action1, action2 = self:GetBindingsByKey(key, scope)
-	if action1 ~= action then
-		self:ClearBinding(action1, scope)
+	local currentAction, isSecondary = self:GetBindingsByKey(key, scope)
+	if currentAction ~= action or isSecondary then
+		self:ClearBinding(currentAction, scope, isSecondary)
 	end
-	self:ClearBinding(action2, scope, true)
 	
 	self.db[scope].bindings[action] = key or true
 	-- self:SetBinding(action, scope, key)
@@ -407,12 +406,9 @@ end
 function addon:SetSecondaryBinding(action, scope, key)
 	-- key = key or self.db[scope].bindings[action]
 	
-	local action1, action2 = self:GetBindingsByKey(key, scope)
-	if action1 ~= action then
-		self:ClearBinding(action1, scope)
-	end
-	if action2 ~= action then
-		self:ClearBinding(action2, scope, true)
+	local currentAction, isSecondary = self:GetBindingsByKey(key, scope)
+	if currentAction ~= action then
+		self:ClearBinding(currentAction, scope, isSecondary)
 	end
 	
 	self.db[scope].secondaryBindings[action] = key
@@ -426,10 +422,10 @@ function addon:ClearBindings(action, scope)
 	scope.secondaryBindings[action] = nil
 end
 
-function addon:ClearBinding(action, scope, secondary)
+function addon:ClearBinding(action, scope, isSecondary)
 	if not action then return end
 	scope = self.db[scope]
-	if not secondary then
+	if not isSecondary then
 		-- if the primary binding was cleared, use the secondary binding as primary
 		scope.bindings[action] = scope.secondaryBindings[action] or true
 	end
@@ -440,80 +436,80 @@ function addon:UPDATE_BINDINGS()
 	self:Fire("UPDATE_BINDINGS")
 end
 
-local bindings = {}
-
-function addon:GetBindingKeys(action)
-	wipe(bindings)
-	for i, scope in ipairs(self.db.global.scopes) do
-		local key1, key2 = self:GetBindings(action, scope)
-		if key1 then
-			tinsert(bindings, {key = key1, scope = scope})
-		end
-		if key2 then
-			tinsert(bindings, {key = key2, scope = scope})
-		end
+local function addBinding(action, key, scope)
+	if not key then return end
+	local color = NORMAL_FONT_COLOR
+	if GetBindingByKey(key) ~= addon:GetActionString(action) then
+		color = GRAY_FONT_COLOR
 	end
-	action = self:GetActionString(action)
-	for i = 1, select("#", GetBindingKey(action)) do
-		tinsert(bindings, {key = select(i, GetBindingKey(action))})
-	end
-	return bindings
+	GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), addon:GetScopeLabel(scope), color.r, color.g, color.b, color.r, color.g, color.b)
 end
 
 function addon:ListBindingKeys(action)
 	GameTooltip:AddLine(addon:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-	local bindings = self:GetBindingKeys(action)
-	for i, binding in ipairs(bindings) do
-		local key = binding.key
-		local color = NORMAL_FONT_COLOR
-		if GetBindingByKey(key) ~= self:GetActionString(action) then
-			color = GRAY_FONT_COLOR
-		end
-		GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), self:GetScopeLabel(binding.scope), color.r, color.g, color.b, color.r, color.g, color.b)
+	for i, scope in ipairs(self.db.global.scopes) do
+		local key1, key2 = self:GetBindings(action, scope)
+		addBinding(action, key1, scope)
+		addBinding(action, key2, scope)
+	end
+	action = self:GetActionString(action)
+	for i = 1, select("#", GetBindingKey(action)) do
+		addBinding(action, select(i, GetBindingKey(action)))
 	end
 	GameTooltip:Show()
 end
 
+-- get the first active key bound to the given action
 function addon:GetBindingKey(action)
 	local activeKey
 	local scopes = self.db.global.scopes
 	for i = #scopes, 1, -1 do
-		local scope = self.db[scopes[i]]
-		local key = scope.bindings[action] or scope.secondaryBindings[action]
-		if type(key) == "string" then
+		local scope = scopes[i]
+		local key1, key2 = self:GetBindings(action, scope)
+		local key = key1 or key2
+		if key then
 			return key
 		end
 	end
 	return GetBindingKey(action)
 end
 
+-- get the binding bound to the given key in the given scope
 function addon:GetBindingsByKey(key, scope)
-	local action1, action2
 	scope = self.db[scope]
 	for action, key2 in pairs(scope.bindings) do
 		if key2 == key then
-			action1 = action
-			break
+			return action
+		end
+		if scope.secondaryBindings[action] == key then
+			return action, true
 		end
 	end
-	for action, key2 in pairs(scope.secondaryBindings) do
-		if key2 == key then
-			action2 = action
-			break
-		end
-	end
-	return action1, action2
 end
 
-function addon:GetActiveScopeForKey(key)
-	local scopes = self.db.global.scopes
+function addon:GetConflictState(key)
+	if not key then return end
+	local activeScope
+	local scopes = self:GetActiveScopes()
 	for i = #scopes, 1, -1 do
 		local scope = scopes[i]
-		for action, key2 in pairs(self:GetBindingsForScope(scope)) do
-			if key2 == key then
-				return scope
-			end
+		local action = self:GetBindingsByKey(key, scope)
+		if action then
+			return self:GetActionString(action), scope
 		end
+	end
+	return GetBindingByKey(key)
+end
+
+function addon:GetConflictText(currentScope, newScope)
+	currentScope = addon.scopePriority[currentScope] or 0
+	newScope = addon.scopePriority[newScope]
+	if newScope > currentScope then
+		return "Will override %s"
+	elseif newScope < currentScope then
+		return "Will be inactive (%s)", GRAY_FONT_COLOR_CODE
+	else
+		return "Will replace %s", BATTLENET_FONT_COLOR_CODE
 	end
 end
 
@@ -592,6 +588,10 @@ end
 
 function addon:GetScopes()
 	return scopes
+end
+
+function addon:GetActiveScopes()
+	return self.db.global.scopes
 end
 
 function addon:GetScopeLabel(scope)
