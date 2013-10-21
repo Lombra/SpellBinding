@@ -1,4 +1,4 @@
-## Interface: 50300
+## Interface: 50400
 ## Title: SpellBinding
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
@@ -15,6 +15,6 @@ AceDBUI.lua
 
 Core.lua
 Bindings.lua
-Scoping.lua
 Custom.lua
+Scoping.lua
 Options.lua

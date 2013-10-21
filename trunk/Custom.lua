@@ -5,6 +5,10 @@ local Custom = addon:NewModule("Custom")
 local currentKey, currentIndex
 
 local function onValueChanged(self, value, isUserInput)
+	if isUserInput then
+		self:SetValue(value)
+		value = self:GetValue()
+	end
 	self.currentValue:SetText(value)
 	if not isUserInput then return end
 	Custom.db.global[self.setting] = value

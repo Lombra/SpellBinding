@@ -114,7 +114,7 @@ do	-- click binding
 
 	local new = CreateFrame("Button", "SpellBindingAddBinding", Bindings, "UIMenuButtonStretchTemplate")
 	new:SetWidth(80)
-	new:SetPoint("TOPLEFT", 8, -32)
+	new:SetPoint("TOPLEFT", 16, -32)
 	new:SetText("Bind click")
 	new:SetScript("OnClick", function()
 		clickBind:Show()
