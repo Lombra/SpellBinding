@@ -1,47 +1,45 @@
-local addonName, addon = ...
+local _, SpellBinding = ...
 
-local Custom = addon:NewModule("Custom")
+local Custom = SpellBinding:NewModule("Custom", CreateFrame("Frame"))
 
 local currentKey, currentIndex
 
 local function onValueChanged(self, value, isUserInput)
-	if isUserInput then
-		self:SetValue(value)
-		value = self:GetValue()
-	end
 	self.currentValue:SetText(value)
 	if not isUserInput then return end
 	Custom.db.global[self.setting] = value
 	Custom:UpdateGrid()
 end
 
-local function createSlider(name, maxValue)
-	local slider = CreateFrame("Slider", name, Custom, "OptionsSliderTemplate")
-	_G[name] = nil
+local function createSlider(maxValue)
+	local slider = SpellBinding:CreateSlider(Custom)
 	slider:SetWidth(96)
-	slider:SetScript("OnValueChanged", onValueChanged)
+	slider.min:ClearAllPoints()
+	slider.min:SetPoint("LEFT", -12, 0)
+	slider.max:ClearAllPoints()
+	slider.max:SetPoint("RIGHT", 12, 0)
+	slider.currentValue:ClearAllPoints()
+	slider.currentValue:SetPoint("LEFT", slider.label, "RIGHT")
+	slider.currentValue:SetFontObject("GameFontHighlight")
 	slider:SetMinMaxValues(1, maxValue)
 	slider:SetValueStep(1)
-	slider.label = _G[name.."Text"]
-	_G[name.."Low"]:SetText(1)
-	_G[name.."High"]:SetText(maxValue)
-	-- slider.label:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", -4, 0)
-	slider.currentValue = slider:CreateFontString(nil, "BACKGROUND", "GameFontHighlightSmall")
-	slider.currentValue:SetPoint("CENTER", 0, -12)
+	slider.min:SetText(1)
+	slider.max:SetText(maxValue)
+	slider:SetScript("OnValueChanged", onValueChanged)
 	return slider
 end
 
-local rowsSlider = createSlider(addonName.."GridRows", 8)
-rowsSlider:SetPoint("TOPLEFT", 16, -36)
+local rowsSlider = createSlider(8)
+rowsSlider:SetPoint("TOPLEFT", 40, -40)
 rowsSlider.setting = "gridRows"
-rowsSlider.label:SetText("Rows")
+rowsSlider.label:SetText("Rows: ")
 
-local columnsSlider = createSlider(addonName.."GridColumns", 7)
-columnsSlider:SetPoint("LEFT", rowsSlider, "RIGHT", 16, 0)
+local columnsSlider = createSlider(7)
+columnsSlider:SetPoint("TOPRIGHT", -40, -40)
 columnsSlider.setting = "gridColumns"
-columnsSlider.label:SetText("Columns")
+columnsSlider.label:SetText("Columns: ")
 
-local overlay = addon:CreateBindingOverlay(Custom)
+local overlay = SpellBinding:CreateBindingOverlay(Custom)
 overlay.OnAccept = function(self)
 	Custom.db.global.keys[currentIndex] = currentKey
 	Custom:UpdateCustomBindings()
@@ -58,39 +56,42 @@ overlay:SetScript("OnHide", function(self)
 	currentKey = nil
 end)
 
+local hintClose = overlay:CreateFontString(nil, nil, "GameFontDisable")
+hintClose:SetPoint("CENTER", 0, -48)
+hintClose:SetText("Press Escape to cancel")
+
 local function onClick(self, key, action)
-	addon:SetPrimaryBinding(action, self.value, key)
+	SpellBinding:SetPrimaryBinding(action, self.value, key)
 end
 
-local selectScopeMenu = CreateFrame("Frame")
-selectScopeMenu.displayMode = "MENU"
-selectScopeMenu.xOffset = 0
-selectScopeMenu.yOffset = 0
-selectScopeMenu.initialize = function(self)
+local selectSetMenu = SpellBinding:CreateDropdown("Menu")
+selectSetMenu.xOffset = 0
+selectSetMenu.yOffset = 0
+selectSetMenu.initialize = function(self)
 	local info = UIDropDownMenu_CreateInfo()
-	info.text = "Select scope"
+	info.text = "Select set"
 	info.isTitle = true
 	info.notCheckable = true
-	UIDropDownMenu_AddButton(info)
+	self:AddButton(info)
 	
-	local currentAction, activeScope = addon:GetConflictState(self.key)
+	local currentAction, activeSet = SpellBinding:GetConflictState(self.key)
 	
-	for i, scope in ipairs(addon.db.global.scopes) do
+	for i, set in ipairs(SpellBinding.db.global.sets) do
 		local info = UIDropDownMenu_CreateInfo()
-		info.text = addon:GetScopeLabel(scope)
-		info.value = scope
+		info.text = SpellBinding:GetSetName(set)
+		info.value = set
 		info.func = onClick
 		info.arg1 = self.key
 		info.arg2 = self.action
 		info.notCheckable = true
 		if currentAction then
-			local conflict, color = addon:GetConflictText(activeScope, scope)
+			local conflict, color = SpellBinding:GetConflictText(activeSet, set)
 			info.colorCode = color
-			info.tooltipTitle = format(conflict, addon:GetActionLabel(currentAction))
+			info.tooltipTitle = format(conflict, SpellBinding:GetActionLabel(currentAction))
 			-- info.tooltipText = format(conflict, currentAction)
 			info.tooltipOnButton = true
 		end
-		UIDropDownMenu_AddButton(info)
+		self:AddButton(info)
 	end
 end
 
@@ -106,10 +107,10 @@ local function dropAction(self, button)
 		elseif type == "macro" then
 			action = "MACRO "..GetMacroInfo(data)
 		end
-		selectScopeMenu.key = Custom.db.global.keys[self:GetID()]
-		selectScopeMenu.action = action
+		selectSetMenu.key = Custom.db.global.keys[self:GetID()]
+		selectSetMenu.action = action
 		HideDropDownMenu(1)
-		ToggleDropDownMenu(nil, nil, selectScopeMenu, self)
+		selectSetMenu:Toggle(nil, self)
 	end
 	ClearCursor()
 end
@@ -131,8 +132,9 @@ local options = {
 	},
 }
 
-local menu = CreateFrame("Frame")
-menu.displayMode = "MENU"
+local menu = SpellBinding:CreateDropdown("Menu")
+menu.xOffset = 0
+menu.yOffset = 0
 menu.initialize = function(self)
 	local index = UIDROPDOWNMENU_MENU_VALUE
 	for i, option in ipairs(options) do
@@ -141,7 +143,7 @@ menu.initialize = function(self)
 		info.func = option.func
 		info.arg1 = index
 		info.notCheckable = true
-		UIDropDownMenu_AddButton(info)
+		self:AddButton(info)
 	end
 end
 
@@ -150,18 +152,21 @@ local function onClick(self, button)
 		dropAction(self, button)
 		return
 	end
-	if button == "LeftButton" then
+	-- if button == "LeftButton" then
 		-- currentIndex = self:GetID()
 		-- overlay:Show()
-	else
-		ToggleDropDownMenu(nil, self:GetID(), menu, self, 0, 0)
+	-- else
+	if self:GetID() ~= UIDROPDOWNMENU_MENU_VALUE then
+		menu:Close()
 	end
+		menu:Toggle(self:GetID(), self)
+	-- end
 end
 
 local function onEnter(self)
 	if not self.binding then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	addon:ListBindingKeys(self.binding)
+	SpellBinding:ListBindingKeys(self.binding)
 end
 
 local buttons = {}
@@ -210,7 +215,7 @@ local defaults = {
 function Custom:OnInitialize()
 	self.UPDATE_BINDINGS = self.UpdateCustomBindings
 	
-	self.db = addon.db:RegisterNamespace("Custom", defaults)
+	self.db = SpellBinding.db:RegisterNamespace("Custom", defaults)
 	
 	rowsSlider:SetValue(self.db.global.gridRows)
 	columnsSlider:SetValue(self.db.global.gridColumns)
@@ -252,9 +257,9 @@ function Custom:UpdateCustomBindings()
 		local key = self.db.global.keys[i]
 		button.hotKey:SetText(GetBindingText(key, "KEY_"))
 		local binding = key and GetBindingByKey(key)
-		local name, texture = addon:GetActionInfo(binding)
+		local name, texture = SpellBinding:GetActionInfo(binding)
 		button.name:SetText(name)
 		button.icon:SetTexture(texture)
-		button.binding = addon:GetActionStringReverse(binding)
+		button.binding = SpellBinding:GetActionStringReverse(binding) or binding
 	end
 end
