@@ -1,20 +1,21 @@
-local addonName, addon = ...
+local _, SpellBinding = ...
 
-local widgetIndex = 1
-local function getWidgetName()
-	local name = addonName.."Widget"..widgetIndex
-	widgetIndex = widgetIndex + 1
-	return name
-end
-
-local currentKey, currentAction, currentScope, newScope, isSecondary
+local currentKey, currentAction, currentSet, newSet, isSecondary
 local list
 
-local Bindings = addon:NewModule("Bindings")
+local Bindings = SpellBinding:NewModule("Bindings", CreateFrame("Frame"))
 
 Bindings:EnableMouse(true)
 Bindings:SetScript("OnMouseUp", dropAction)
 Bindings:SetScript("OnReceiveDrag", dropAction)
+
+local hintNoBindings = Bindings:CreateFontString(nil, nil, "GameFontNormalMed3")
+hintNoBindings:SetPoint("CENTER", Bindings.Inset)
+hintNoBindings:SetText("Drag something here to bind it")
+
+local hintNoSets = Bindings:CreateFontString(nil, nil, "GameFontNormalMed3")
+hintNoSets:SetPoint("CENTER", Bindings.Inset)
+hintNoSets:SetText("No binding sets are active")
 
 local function dropAction(self, button)
 	if button == "LeftButton" or not button then
@@ -27,7 +28,12 @@ local function dropAction(self, button)
 		elseif type == "macro" then
 			action = "MACRO "..GetMacroInfo(data)
 		end
-		addon:SetPrimaryBinding(action, self.scope or "global")
+		local sets = SpellBinding.db.global.sets
+		if not action or #sets == 0 then
+			return
+		end
+		-- if dropped on empty space, use lowest priority active set
+		SpellBinding:SetPrimaryBinding(action, self.set or sets[1])
 		Bindings:UpdateList()
 	end
 	ClearCursor()
@@ -36,11 +42,15 @@ end
 do	-- click binding
 	local currentFocus
 	
-	local clickBind = addon:CreateOverlay(Bindings)
+	local clickBind = SpellBinding:CreateOverlay(Bindings)
 	
 	local info = clickBind:CreateFontString(nil, nil, "GameFontNormal")
 	info:SetPoint("CENTER", 0, 24)
-	info:SetText("Press Escape to cancel")
+	info:SetText("Click a button frame")
+	
+	local hintClose = clickBind:CreateFontString(nil, nil, "GameFontDisable")
+	hintClose:SetPoint("CENTER", 0, -24)
+	hintClose:SetText("Press Escape to cancel")
 	
 	local mouseButtons = {
 		"LeftButton",
@@ -97,7 +107,7 @@ do	-- click binding
 			for i = 1, 31 do
 				local button = mouseButtons[i] or "Button"..i
 				if IsMouseButtonDown(button) then
-					addon:SetPrimaryBinding(format("CLICK %s:%s", currentFocus:GetName(), button), "global")
+					SpellBinding:SetPrimaryBinding(format("CLICK %s:%s", currentFocus:GetName(), button), "global")
 					Bindings:UpdateList()
 					cancelFrameSelection()
 					break
@@ -112,44 +122,49 @@ do	-- click binding
 		end
 	end)
 
-	local new = CreateFrame("Button", "SpellBindingAddBinding", Bindings, "UIMenuButtonStretchTemplate")
+	local new = SpellBinding:CreateButton(Bindings)
 	new:SetWidth(80)
 	new:SetPoint("TOPLEFT", 16, -32)
 	new:SetText("Bind click")
 	new:SetScript("OnClick", function()
 		clickBind:Show()
 	end)
+	new:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText("Bind the clicking of a button frame")
+	end)
+	new:SetScript("OnLeave", GameTooltip_Hide)
 end
 
-local overlay = addon:CreateBindingOverlay(Bindings)
+local overlay = SpellBinding:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
-	if newScope ~= currentScope then
-		addon:ClearBindings(currentAction, currentScope)
-		addon.db[currentScope].bindings[currentAction] = nil
+	if newSet ~= currentSet then
+		SpellBinding:ClearBindings(currentAction, currentSet)
+		SpellBinding.db[currentSet].bindings[currentAction] = nil
 	end
 	if isSecondary then
-		addon:SetSecondaryBinding(currentAction, newScope, currentKey)
+		SpellBinding:SetSecondaryBinding(currentAction, newSet, currentKey)
 	else
-		addon:SetPrimaryBinding(currentAction, newScope, currentKey)
+		SpellBinding:SetPrimaryBinding(currentAction, newSet, currentKey)
 	end
 end
 overlay.OnBinding = function(self, keyPressed)
 	currentKey = keyPressed
 	self:SetBindingKeyText(keyPressed)
-	local previousAction, activeScope = addon:GetConflictState(currentKey)
-	if previousAction and previousAction ~= addon:GetActionString(currentAction) then
-		self.replace:SetFormattedText(addon:GetConflictText(activeScope, newScope), addon:GetActionLabel(previousAction, true))
+	local previousAction, activeSet = SpellBinding:GetConflictState(currentKey)
+	if previousAction and previousAction ~= SpellBinding:GetActionString(currentAction) then
+		self.replace:SetFormattedText(SpellBinding:GetConflictText(activeSet, newSet), SpellBinding:GetActionLabel(previousAction, true))
 	else
 		self.replace:SetText()
 	end
 end
 overlay:SetScript("OnShow", function(self)
 	if isSecondary then
-		currentKey = addon:GetSecondaryBinding(currentAction, currentScope)
+		currentKey = SpellBinding:GetSecondaryBinding(currentAction, currentSet)
 	else
-		currentKey = addon:GetPrimaryBinding(currentAction, currentScope)
+		currentKey = SpellBinding:GetPrimaryBinding(currentAction, currentSet)
 	end
-	self:SetBindingActionText(addon:GetActionLabel(currentAction))
+	self:SetBindingActionText(SpellBinding:GetActionLabel(currentAction))
 	self:SetBindingKeyText(currentKey ~= true and currentKey)
 	self.replace:SetText()
 end)
@@ -158,100 +173,99 @@ overlay:SetScript("OnHide", function(self)
 	isSecondary = nil
 end)
 
-overlay.replace = overlay:CreateFontString(nil, nil, "GameFontNormal")
+overlay.replace = overlay:CreateFontString(nil, nil, "GameFontRed")
 overlay.replace:SetPoint("CENTER", 0, -48)
-overlay.replace:SetTextColor(RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
 
-local function onClick(self, scope)
-	UIDropDownMenu_SetText(self.owner, addon:GetScopeLabel(scope))
-	newScope = scope
+local hintClose = overlay:CreateFontString(nil, nil, "GameFontDisable")
+hintClose:SetPoint("CENTER", 0, -72)
+hintClose:SetText("Press Escape to cancel")
+
+local function onClick(self, set)
+	self.owner:SetText(SpellBinding:GetSetName(set))
+	newSet = set
 end
 
-local scopeMenu = CreateFrame("Frame", "SpellBindingSelectScopeMenu", overlay, "UIDropDownMenuTemplate")
-UIDropDownMenu_SetWidth(scopeMenu, 128)
-UIDropDownMenu_JustifyText(scopeMenu, "LEFT")
-scopeMenu:SetPoint("BOTTOMLEFT", 0, 8)
-scopeMenu.initialize = function(self)
-	for i, v in pairs(addon.db.global.scopes) do
+local setMenu = SpellBinding:CreateDropdown("Frame", overlay)
+setMenu:SetWidth(128)
+setMenu:SetLabel("Set")
+setMenu:JustifyText("LEFT")
+setMenu:SetPoint("BOTTOMLEFT", 0, 8)
+setMenu.initialize = function(self)
+	for i, v in pairs(SpellBinding.db.global.sets) do
 		local info = UIDropDownMenu_CreateInfo()
-		info.text = addon:GetScopeLabel(v)
+		info.text = SpellBinding:GetSetName(v)
 		info.func = onClick
 		info.arg1 = v
-		info.checked = (v == newScope)
-		info.owner = self
-		UIDropDownMenu_AddButton(info)
+		info.checked = (v == newSet)
+		self:AddButton(info)
 	end
 end
 
-local label = scopeMenu:CreateFontString(nil, nil, "GameFontNormalSmall")
-label:SetPoint("BOTTOMLEFT", scopeMenu, "TOPLEFT", 16, 3)
-label:SetText("Scope")
+local scrollFrame
 
 do
-	local BUTTON_HEIGHT = 18
-	local BUTTON_OFFSET = 2
-	
 	local options = {
 		{
 			text = "Set secondary binding",
-			func = function(self, action, scope)
+			func = function(self, action, set)
 				currentAction = action
-				currentScope = scope
-				newScope = scope
+				currentSet = set
+				newSet = set
 				isSecondary = true
-				scopeMenu:Hide()
+				setMenu:Hide()
 				overlay:Show()
 			end,
 			primary = true,
 		},
 		{
 			text = "Unbind",
-			func = function(self, action, scope)
-				addon:ClearBindings(action, scope)
-				addon:ApplyBindings()
+			func = function(self, action, set)
+				SpellBinding:ClearBindings(action, set)
+				SpellBinding:ApplyBindings()
 			end,
 		},
 		{
 			text = "Unbind primary binding",
-			func = function(self, action, scope)
-				addon:ClearBinding(action, scope)
-				addon:ApplyBindings()
+			func = function(self, action, set)
+				SpellBinding:ClearBinding(action, set)
+				SpellBinding:ApplyBindings()
 			end,
 			secondary = true,
 		},
 		{
 			text = "Unbind secondary binding",
-			func = function(self, action, scope)
-				addon:ClearBinding(action, scope, true)
-				addon:ApplyBindings()
+			func = function(self, action, set)
+				SpellBinding:ClearBinding(action, set, true)
+				SpellBinding:ApplyBindings()
 			end,
 			secondary = true,
 		},
 		{
 			text = "Remove",
-			func = function(self, action, scope)
-				addon:ClearBindings(action, scope)
-				addon.db[scope].bindings[action] = nil
-				addon:ApplyBindings()
+			func = function(self, action, set)
+				SpellBinding:ClearBindings(action, set)
+				SpellBinding.db[set].bindings[action] = nil
+				SpellBinding:ApplyBindings()
 			end,
 		},
 	}
 	
-	local menu = CreateFrame("Frame")
-	menu.displayMode = "MENU"
+	local menu = SpellBinding:CreateDropdown("Menu")
+	menu.xOffset = 0
+	menu.yOffset = 0
 	menu.initialize = function(self)
 		local button = UIDROPDOWNMENU_MENU_VALUE
-		local key1, key2 = addon:GetBindings(button.binding, button.scope)
+		local key1, key2 = SpellBinding:GetBindings(button.binding, button.set)
 		
 		for i, option in ipairs(options) do
 			if (not option.primary or key1) and (not option.secondary or key2) then
-			local info = UIDropDownMenu_CreateInfo()
-			info.text = option.text
-			info.func = option.func
-			info.arg1 = button.binding
-			info.arg2 = button.scope
-			info.notCheckable = true
-			UIDropDownMenu_AddButton(info)
+				local info = UIDropDownMenu_CreateInfo()
+				info.text = option.text
+				info.func = option.func
+				info.arg1 = button.binding
+				info.arg2 = button.set
+				info.notCheckable = true
+				self:AddButton(info)
 			end
 		end
 	end
@@ -264,31 +278,97 @@ do
 		if self.isHeader then return end
 		if button == "LeftButton" then
 			currentAction = self.binding
-			currentScope = self.scope
-			newScope = self.scope
-			UIDropDownMenu_SetText(scopeMenu, addon:GetScopeLabel(currentScope))
-			scopeMenu:Show()
+			currentSet = self.set
+			newSet = self.set
+			setMenu:SetText(SpellBinding:GetSetName(currentSet))
+			setMenu:Show()
 			overlay:Show()
 		else
-			ToggleDropDownMenu(nil, self, menu, self, 0, 0)
+			menu:Toggle(self, self)
 		end
 	end
 	
 	local function onEnter(self)
 		if self.isHeader then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 28, 0)
-		addon:ListBindingKeys(self.binding)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 25, 0)
+		SpellBinding:ListBindingKeys(self.binding)
+		-- GameTooltip:AddLine(" ")
+		-- GameTooltip:AddLine("Left click to set binding")
+		-- GameTooltip:AddLine("Right click for options")
+		GameTooltip:Show()
 		self.showingTooltip = true
 	end
-
+	
 	local function onLeave(self)
 		GameTooltip:Hide()
 		self.showingTooltip = false
 	end
 	
-	local function createButton(frame)
-		local button = CreateFrame("Button", nil, frame)
-		button:SetHeight(BUTTON_HEIGHT)
+	local function updateButton(button, object)
+		local isHeader = not object.action
+		if isHeader then
+			button:EnableDrawLayer("BACKGROUND")
+			button:SetHighlightTexture(nil)
+			button.label:SetFontObject(GameFontNormal)
+			button.label:SetPoint("LEFT", 11, 0)
+			button.info:SetText("")
+			button.icon:SetTexture("")
+			
+			button.label:SetText(SpellBinding:GetSetName(object.set))
+		else
+			button:DisableDrawLayer("BACKGROUND")
+			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
+			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+			
+			local key = SpellBinding:GetBindingKey(object.action)
+			local isInactive = key and GetBindingByKey(key) ~= SpellBinding:GetActionString(object.action)
+			local name, texture, type = SpellBinding:GetActionInfo(object.action)
+			button.label:SetFontObject(isInactive and GameFontDisable or GameFontHighlight)
+			button.label:SetText(SpellBinding:GetActionLabel(object.action))
+			button.info:SetFontObject((isInactive or not key) and GameFontDisableSmall or GameFontNormalSmall)
+			button.info:SetText(GetBindingText(key or NOT_BOUND, "KEY_"))
+			button.icon:SetTexture(texture)
+		end
+		button.binding = object.action
+		button.set = object.set
+		button.isHeader = isHeader
+		
+		if button.showingTooltip then
+			if isHeader then
+				GameTooltip:Hide()
+			else
+				onEnter(button)
+			end
+		end
+	end
+	
+	scrollFrame = SpellBinding:CreateScrollFrame("Hybrid", Bindings)
+	scrollFrame:SetPoint("TOPLEFT", Bindings.Inset, 4, -4)
+	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -20, 4)
+	scrollFrame:SetScript("OnMouseUp", dropAction)
+	scrollFrame:SetScript("OnReceiveDrag", dropAction)
+	scrollFrame:SetButtonHeight(18)
+	scrollFrame.initialOffsetX = 2
+	scrollFrame.initialOffsetY = -1
+	scrollFrame.offsetY = -2
+	scrollFrame.update = function()
+		local offset = scrollFrame:GetOffset()
+		local buttons = scrollFrame.buttons
+		local numButtons = #buttons
+		for i = 1, numButtons do
+			local button = buttons[i]
+			local index = offset + i
+			local object = list[index]
+			if object then
+				updateButton(button, object)
+			end
+			button:SetShown(object ~= nil)
+		end
+		
+		HybridScrollFrame_Update(scrollFrame, #list * scrollFrame.buttonHeight, numButtons * scrollFrame.buttonHeight)
+	end
+	scrollFrame.createButton = function(parent)
+		local button = CreateFrame("Button", nil, parent)
 		button:SetPoint("RIGHT", -5, 0)
 		button:SetScript("OnClick", onClick)
 		button:SetScript("OnEnter", onEnter)
@@ -330,113 +410,34 @@ do
 		return button
 	end
 	
-	local function updateButton(button, object)
-		local isHeader = not object.action
-		if isHeader then
-			button:EnableDrawLayer("BACKGROUND")
-			button:SetHighlightTexture(nil)
-			button.label:SetFontObject(GameFontNormal)
-			button.label:SetPoint("LEFT", 11, 0)
-			button.info:SetText("")
-			button.icon:SetTexture("")
-			
-			button.label:SetText(addon:GetScopeLabel(object.scope))
-		else
-			button:DisableDrawLayer("BACKGROUND")
-			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
-			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
-			
-			local key = addon:GetBindingKey(object.action)
-			local isInactive = key and GetBindingByKey(key) ~= addon:GetActionString(object.action)
-			local name, texture, type = addon:GetActionInfo(object.action)
-			button.label:SetFontObject(isInactive and GameFontDisable or GameFontHighlight)
-			button.label:SetText(addon:GetActionLabel(object.action))
-			button.info:SetFontObject(isInactive and GameFontDisableSmall or GameFontHighlightSmall)
-			button.info:SetText(GetBindingText(key or NOT_BOUND, "KEY_"))
-			button.icon:SetTexture(texture)
-		end
-		button.binding = object.action
-		button.scope = object.scope
-		button.isHeader = isHeader
-		
-		if button.showingTooltip then
-			if isHeader then
-				GameTooltip:Hide()
-			else
-				onEnter(button)
-			end
-		end
-	end
-	
-	local function update(self)
-		local offset = HybridScrollFrame_GetOffset(self)
-		local buttons = self.buttons
-		local numButtons = #buttons
-		for i = 1, numButtons do
-			local button = buttons[i]
-			local index = offset + i
-			local object = list[index]
-			if object then
-				updateButton(button, object)
-			end
-			button:SetShown(object ~= nil)
-		end
-		
-		HybridScrollFrame_Update(self, #list * self.buttonHeight, numButtons * self.buttonHeight)
-	end
-	
-	local name = getWidgetName()
-	scrollFrame = CreateFrame("ScrollFrame", name, Bindings, "HybridScrollFrameTemplate")
-	scrollFrame:SetPoint("TOPLEFT", Bindings.Inset, 4, -4)
-	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -23, 4)
-	scrollFrame:SetScript("OnMouseUp", dropAction)
-	scrollFrame:SetScript("OnReceiveDrag", dropAction)
-	scrollFrame.update = function()
-		update(scrollFrame)
-	end
-	_G[name] = nil
-	
-	local scrollBar = CreateFrame("Slider", nil, scrollFrame, "HybridScrollBarTemplate")
+	local scrollBar = scrollFrame.scrollBar
 	scrollBar:ClearAllPoints()
-	scrollBar:SetPoint("TOP", Bindings.Inset, 0, -16)
-	scrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 0, 11)
+	scrollBar:SetPoint("TOPRIGHT", Bindings.Inset, 0, -18)
+	scrollBar:SetPoint("BOTTOMRIGHT", Bindings.Inset, 0, 16)
 	scrollBar.doNotHide = true
 	
-	local buttons = {}
-	scrollFrame.buttons = buttons
-	
-	for i = 1, (ceil(scrollFrame:GetHeight() / BUTTON_HEIGHT) + 1) do
-		local button = createButton(scrollFrame.scrollChild)
-		if i == 1 then
-			button:SetPoint("TOPLEFT", 2, -1)
-		else
-			button:SetPoint("TOPLEFT", buttons[i - 1], "BOTTOMLEFT", 0, -BUTTON_OFFSET)
-		end
-		buttons[i] = button
-	end
-	
-	HybridScrollFrame_CreateButtons(scrollFrame, nil, nil, nil, nil, nil, nil, -BUTTON_OFFSET)
+	scrollFrame:CreateButtons()
 end
 
 local customSort = {}
-addon.scopePriority = customSort
+SpellBinding.setPriority = customSort
 
 -- reverse the tables for easier use
-function addon:UpdateSortOrder()
+function SpellBinding:UpdateSortOrder()
 	wipe(customSort)
-	for i, v in ipairs(self.db.global.scopes) do
+	for i, v in ipairs(self.db.global.sets) do
 		customSort[v] = i
 	end
 end
 
 local function listSort(a, b)
-	if a.scope == b.scope then
+	if a.set == b.set then
 		if not a.action and b.action then return true end
-		if not addon:GetActionInfo(a.action) then if a.action then print(a.action) end return end
-		if not addon:GetActionInfo(b.action) then if b.action then print(b.action) end return end
-		return addon:GetActionInfo(a.action) < addon:GetActionInfo(b.action)
+		if not SpellBinding:GetActionInfo(a.action) then if a.action then print(a.action) end return end
+		if not SpellBinding:GetActionInfo(b.action) then if b.action then print(b.action) end return end
+		return SpellBinding:GetActionInfo(a.action) < SpellBinding:GetActionInfo(b.action)
 	else
-		return customSort[a.scope] < customSort[b.scope]
+		return customSort[a.set] > customSort[b.set]
 	end
 end
 
@@ -445,22 +446,22 @@ local usedActions = {}
 function Bindings:UpdateList()
 	list = {}
 	wipe(usedActions)
-	local scopes = addon.db.global.scopes
-	for i = #scopes, 1, -1 do
-		local scope = scopes[i]
-		if addon:IsScopeUsed(scope) then
-			local bindings = addon:GetBindingsForScope(scope)
+	local sets = SpellBinding.db.global.sets
+	for i = #sets, 1, -1 do
+		local set = sets[i]
+		if SpellBinding:IsSetActive(set) then
+			local bindings = SpellBinding:GetBindingsForSet(set)
 			if next(bindings) then
 				tinsert(list, {
-					scope = scope,
+					set = set,
 				})
 			end
 			for action in pairs(bindings) do
-				-- don't duplicate if included in more than one scope
+				-- don't duplicate if included in more than one set
 				if not usedActions[action] then
 					tinsert(list, {
 						action = action,
-						scope = scope,
+						set = set,
 					})
 					usedActions[action] = true
 				end
@@ -469,6 +470,8 @@ function Bindings:UpdateList()
 	end
 	sort(list, listSort)
 	scrollFrame:update()
+	hintNoBindings:SetShown(#sets > 0 and #list == 0)
+	hintNoSets:SetShown(#sets == 0)
 end
 
 Bindings.UPDATE_BINDINGS = Bindings.UpdateList

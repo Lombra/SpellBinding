@@ -1,32 +1,26 @@
-local addonName, addon = ...
+local Libra = LibStub("Libra")
+local SpellBinding = Libra:NewAddon(...)
+Libra:EmbedWidgets(SpellBinding)
 
-local frame = CreateFrame("Frame", addonName.."Frame", UIParent, "ButtonFrameTemplate")
-addon.frame = frame
+local frame = SpellBinding:CreateUIPanel("SpellBindingFrame")
 frame:SetPoint("CENTER")
 frame:SetToplevel(true)
 frame:EnableMouse(true)
+frame:SetTitleText("SpellBinding")
+frame:HidePortrait(frame)
+frame:HideButtonBar(frame)
 frame:SetScript("OnShow", function(self)
 	PlaySound("igCharacterInfoOpen")
-	if not PanelTemplates_GetSelectedTab(self) then
-		PanelTemplates_SetTab(self, 1)
+	if not self:GetSelectedTab() then
+		self:SelectTab(1)
 	end
 end)
 frame:SetScript("OnHide", function(self)
 	PlaySound("igCharacterInfoClose")
 end)
-frame.TitleText:SetText(addonName)
-ButtonFrameTemplate_HidePortrait(frame)
-ButtonFrameTemplate_HideButtonBar(frame)
-frame.Inset:SetPoint("BOTTOMRIGHT", PANEL_INSET_RIGHT_OFFSET, PANEL_INSET_BOTTOM_OFFSET + 2)
-tinsert(UISpecialFrames, frame:GetName())
-UIPanelWindows[frame:GetName()] = {
-	area = "left",
-	pushable = 1,
-	whileDead = true,
-}
 
 SlashCmdList["SPELLBINDING"] = function(msg)
-	ToggleFrame(addon.frame)
+	ToggleFrame(frame)
 end
 SLASH_SPELLBINDING1 = "/spellbinding"
 SLASH_SPELLBINDING2 = "/sb"
@@ -34,18 +28,27 @@ SLASH_SPELLBINDING2 = "/sb"
 BINDING_HEADER_SPELLBINDING = "SpellBinding"
 BINDING_NAME_SPELLBINDING_TOGGLE = "Toggle SpellBinding frame"
 
+local dataobj = LibStub("LibDataBroker-1.1"):NewDataObject("SpellBinding", {
+	type = "launcher",
+	label = "SpellBinding",
+	icon = [[Interface\Icons\INV_Pet_LilSmokey2]],
+	OnClick = function(self, button)
+		ToggleFrame(frame)
+	end,
+})
+
 local backdrop = {
 	bgFile = [[Interface\Buttons\WHITE8X8]],
 	insets = {left = 4, right = 4, top = 0, bottom = 4}
 }
 
-function addon:CreateOverlay(parent, isBindingOverlay)
+function SpellBinding:CreateOverlay(parent, isBindingOverlay)
 	local overlay = CreateFrame(isBindingOverlay and "Button" or "Frame", nil, parent)
 	overlay:SetPoint("TOPLEFT", 0, -21)
 	overlay:SetPoint("BOTTOMRIGHT")
 	overlay:SetFrameStrata("HIGH")
 	overlay:SetBackdrop(backdrop)
-	overlay:SetBackdropColor(0, 0, 0, 0.7)
+	overlay:SetBackdropColor(0, 0, 0, 0.8)
 	overlay:EnableMouse(true)
 	overlay:Hide()
 	
@@ -128,9 +131,9 @@ local function onAccept(self)
 	self.overlay:Hide()
 end
 
-function addon:CreateBindingOverlay(parent)
+function SpellBinding:CreateBindingOverlay(parent)
 	local overlay = self:CreateOverlay(parent, true)
-	overlay:RegisterForClicks("AnyUp")
+	overlay:RegisterForClicks("AnyDown")
 	overlay.SetBindingActionText = setBindingActionText
 	overlay.SetBindingKeyText = setBindingKeyText
 	
@@ -147,7 +150,7 @@ function addon:CreateBindingOverlay(parent)
 	overlay.key = overlay:CreateFontString(nil, nil, "GameFontNormal")
 	overlay.key:SetPoint("CENTER", 0, -24)
 	
-	local acceptButton = CreateFrame("Button", nil, overlay, "UIPanelButtonTemplate")
+	local acceptButton = self:CreateButton(overlay)
 	acceptButton:SetWidth(80)
 	acceptButton:SetPoint("BOTTOMRIGHT", -16, 16)
 	acceptButton:SetText(ACCEPT)
@@ -157,68 +160,21 @@ function addon:CreateBindingOverlay(parent)
 	return overlay
 end
 
-local combatBlock = addon:CreateOverlay(frame)
+local combatBlock = SpellBinding:CreateOverlay(frame)
 
+combatBlock.text:SetFontObject("GameFontNormalMed3")
 combatBlock.text:SetText("Keybinding blocked during combat")
 
-local tabs = {}
-
-local function onClick(self)
-	PanelTemplates_Tab_OnClick(self, frame)
-	PlaySound("igCharacterInfoTab")
+function frame:OnTabSelected(id)
+	self.tabs[id].frame:Show()
 end
 
-local function onEnable(self)
-	self.frame:Hide()
-end
-
-local function onDisable(self)
-	self.frame:Show()
-end
-
-local function createTab()
-	local numTabs = #tabs + 1
-	local tab = CreateFrame("Button", addonName.."FrameTab"..numTabs, frame, "CharacterFrameTabButtonTemplate")
-	if numTabs == 1 then
-		tab:SetPoint("BOTTOMLEFT", 19, -30)
-	else
-		tab:SetPoint("LEFT", tabs[numTabs - 1], "RIGHT", -15, 0)
-	end
-	tab:SetID(numTabs)
-	tab:SetScript("OnClick", onClick)
-	tab:SetScript("OnEnable", onEnable)
-	tab:SetScript("OnDisable", onDisable)
-	tabs[numTabs] = tab
-	PanelTemplates_SetNumTabs(frame, numTabs)
-	return tab
-end
-
-local modules = {}
-
-function addon:GetSelectedTab()
-	return tabs[PanelTemplates_GetSelectedTab(frame)].frame
-end
-
-function addon:NewModule(name)
-	if modules[name] then
-		error("Module '"..name.."' already exists.", 2)
-	end
-	
-	local ui = CreateFrame("Frame", nil, frame)
-	ui:SetAllPoints()
-	ui:Hide()
-	ui.name = name
-	ui.Inset = frame.Inset
-	modules[name] = ui
-	
-	local tab = createTab()
-	tab:SetText(name)
-	tab.frame = ui
-	return ui
+function frame:OnTabDeselected(id)
+	self.tabs[id].frame:Hide()
 end
 
 
-local scopes = {
+local sets = {
 	"global",
 	"realm",
 	"faction",
@@ -229,7 +185,7 @@ local scopes = {
 	-- "profile",
 }
 
-local scopeLabels = {
+local setNames = {
 	global = "Global",
 	realm = "Realm",
 	faction = "Faction",
@@ -243,19 +199,19 @@ local scopeLabels = {
 
 local defaults = {}
 
-for i, scope in ipairs(scopes) do
-	defaults[scope] = {
+for i, set in ipairs(sets) do
+	defaults[set] = {
 		bindings = {},
 		secondaryBindings = {},
 	}
 end
 
-defaults.global.scopes = {
+defaults.global.sets = {
 	"global",
 }
 
 -- insert after so it doesn't get included in defaults since it's not a real datatype
-tinsert(scopes, "percharprofile")
+tinsert(sets, "percharprofile")
 
 local percharDefaults = {
 	profile = {
@@ -264,21 +220,13 @@ local percharDefaults = {
 	}
 }
 
-frame:RegisterEvent("ADDON_LOADED")
-frame:RegisterEvent("PLAYER_LOGIN")
-frame:RegisterEvent("UPDATE_BINDINGS")
-frame:RegisterEvent("PLAYER_REGEN_DISABLED")
-frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-frame:SetScript("OnEvent", function(self, event, ...)
-	addon[event](addon, ...)
-end)
-
-function addon:ADDON_LOADED(addon)
-	if addon ~= addonName then
-		return
-	end
-	
+function SpellBinding:OnInitialize()
 	self.db = LibStub("AceDB-3.0"):New("SpellBindingDB", defaults)
+	
+	if self.db.global.scopes then
+		self.db.global.sets = self.db.global.scopes
+		self.db.global.scopes = nil
+	end
 	
 	-- self.db.RegisterCallback(self, "OnProfileChanged", "RefreshConfig")
 	-- self.db.RegisterCallback(self, "OnProfileCopied", "RefreshConfig")
@@ -294,178 +242,168 @@ function addon:ADDON_LOADED(addon)
 	
 	self.db.percharprofile = self.perchardb.profile
 	
-	do	-- upgrade data (remove for beta/release)
-		for i, scope in ipairs(scopes) do
-			scope = self.db[scope]
-			if scope.actions then
-				local extraBindings = scope.bindings
-				scope.bindings = scope.actions
-				scope.actions = nil
-				for key, action in pairs(extraBindings) do
-					scope.bindings[action] = key
-				end
-			end
-		end
-	end
-	
-	self:Fire("OnInitialize")
+	self:RegisterEvent("PLAYER_LOGIN", "ApplyBindings")
+	self:RegisterEvent("UPDATE_BINDINGS")
+	self:RegisterEvent("PLAYER_REGEN_DISABLED")
+	self:RegisterEvent("PLAYER_REGEN_ENABLED")
 	
 	self:UpdateSortOrder()
+	
+	self:CreateAceDBControls(self.perchardb, self:NewModule("Profile", CreateFrame("Frame"))):SetPoint("CENTER", frame.Inset)
 end
 
-function addon:PLAYER_LOGIN()
-	self:ApplyBindings()
+function SpellBinding:OnModuleCreated(name, module)
+	module:SetParent(frame)
+	module:SetAllPoints()
+	module:Hide()
+	module.name = name
+	module.Inset = frame.Inset
+	
+	local tab = frame:CreateTab()
+	tab:SetText(name)
+	tab.frame = module
 end
 
-function addon:PLAYER_REGEN_DISABLED()
+function SpellBinding:PLAYER_REGEN_DISABLED()
 	combatBlock:Show()
 end
 
-function addon:PLAYER_REGEN_ENABLED()
+function SpellBinding:PLAYER_REGEN_ENABLED()
 	combatBlock:Hide()
 end
 
-function addon:RefreshConfig()
-	do	-- upgrade data (remove for beta/release)
-		for i, scope in ipairs(scopes) do
-			scope = self.db[scope]
-			if scope.actions then
-				local extraBindings = scope.bindings
-				scope.bindings = scope.actions
-				scope.actions = nil
-				for key, action in pairs(extraBindings) do
-					scope.bindings[action] = key
-				end
-			end
-		end
-	end
-	
+function SpellBinding:RefreshConfig()
 	self.db.percharprofile = self.perchardb.profile
 	self:ApplyBindings()
 end
 
-function addon:Fire(callback)
-	for k, module in pairs(modules) do
+function SpellBinding:Fire(callback)
+	for k, module in self:IterateModules() do
 		if module[callback] then
 			module[callback](module)
 		end
 	end
 end
 
-function addon:IsScopeUsed(scope)
-	for i, v in ipairs(self.db.global.scopes) do
-		if v == scope then
+function SpellBinding:IsSetActive(set)
+	for i, v in ipairs(self.db.global.sets) do
+		if v == set then
 			return true
 		end
 	end
 end
 
-function addon:ApplyBindings()
+function SpellBinding:ApplyBindings()
 	ClearOverrideBindings(frame)
-	for i, scope in ipairs(self.db.global.scopes) do
-		scope = self.db[scope]
-		for action, key in pairs(scope.bindings) do
+	for i, set in ipairs(self.db.global.sets) do
+		set = self.db[set]
+		for action, key in pairs(set.bindings) do
 			self:ApplyBinding(key, action)
-			self:ApplyBinding(scope.secondaryBindings[action], action)
+			self:ApplyBinding(set.secondaryBindings[action], action)
 		end
 	end
 	self:Fire("UPDATE_BINDINGS")
 end
 
-function addon:ApplyBinding(key, action)
+function SpellBinding:ApplyBinding(key, action)
 	if not (type(key) == "string" and action) then return end
 	SetOverrideBinding(frame, nil, key, self:GetActionString(action))
 end
 
-function addon:SetBinding(action, scope, key, forcePrimary)
-	if not key and self.db[scope].bindings[action] then
+function SpellBinding:SetBinding(action, set, key, forcePrimary)
+	if not key and self.db[set].bindings[action] then
 		return
 	end
 	
-	if forcePrimary or type(self.db[scope].bindings[action]) ~= "string" then
-		self.db[scope].bindings[action] = key or true
+	if forcePrimary or type(self.db[set].bindings[action]) ~= "string" then
+		self.db[set].bindings[action] = key or true
 	else
-		self.db[scope].secondaryBindings[action] = key
+		self.db[set].secondaryBindings[action] = key
 	end
 	self:ApplyBindings()
 end
 
-function addon:SetPrimaryBinding(action, scope, key)
-	key = key or self.db[scope].bindings[action]
+function SpellBinding:SetPrimaryBinding(action, set, key)
+	key = key or self.db[set].bindings[action]
 	
-	local currentAction, isSecondary = self:GetBindingsByKey(key, scope)
+	local currentAction, isSecondary = self:GetBindingsByKey(key, set)
 	if currentAction ~= action or isSecondary then
-		self:ClearBinding(currentAction, scope, isSecondary)
+		self:ClearBinding(currentAction, set, isSecondary)
 	end
 	
-	self.db[scope].bindings[action] = key or true
-	-- self:SetBinding(action, scope, key)
+	self.db[set].bindings[action] = key or true
+	-- self:SetBinding(action, set, key)
 	self:ApplyBindings()
 end
 
-function addon:SetSecondaryBinding(action, scope, key)
-	-- key = key or self.db[scope].bindings[action]
+function SpellBinding:SetSecondaryBinding(action, set, key)
+	-- key = key or self.db[set].bindings[action]
 	
-	local currentAction, isSecondary = self:GetBindingsByKey(key, scope)
+	local currentAction, isSecondary = self:GetBindingsByKey(key, set)
 	if currentAction ~= action then
-		self:ClearBinding(currentAction, scope, isSecondary)
+		self:ClearBinding(currentAction, set, isSecondary)
 	end
 	
-	self.db[scope].secondaryBindings[action] = key
-	-- self:SetBinding(action, scope, key)
+	self.db[set].secondaryBindings[action] = key
+	-- self:SetBinding(action, set, key)
 	self:ApplyBindings()
 end
 
-function addon:ClearBindings(action, scope)
-	scope = self.db[scope]
-	scope.bindings[action] = true
-	scope.secondaryBindings[action] = nil
+function SpellBinding:ClearBindings(action, set)
+	set = self.db[set]
+	set.bindings[action] = true
+	set.secondaryBindings[action] = nil
 end
 
-function addon:ClearBinding(action, scope, isSecondary)
+function SpellBinding:ClearBinding(action, set, isSecondary)
 	if not action then return end
-	scope = self.db[scope]
+	set = self.db[set]
 	if not isSecondary then
 		-- if the primary binding was cleared, use the secondary binding as primary
-		scope.bindings[action] = scope.secondaryBindings[action] or true
+		set.bindings[action] = set.secondaryBindings[action] or true
 	end
-	scope.secondaryBindings[action] = nil
+	set.secondaryBindings[action] = nil
 end
 
-function addon:UPDATE_BINDINGS()
+function SpellBinding:UPDATE_BINDINGS()
 	self:Fire("UPDATE_BINDINGS")
 end
 
-local function addBinding(action, key, scope)
+local function addBinding(action, key, set)
 	if not key then return end
 	local color = NORMAL_FONT_COLOR
-	if GetBindingByKey(key) ~= addon:GetActionString(action) then
+	if GetBindingByKey(key) ~= SpellBinding:GetActionString(action) then
 		color = GRAY_FONT_COLOR
 	end
-	GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), addon:GetScopeLabel(scope), color.r, color.g, color.b, color.r, color.g, color.b)
+	GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), SpellBinding:GetSetName(set), color.r, color.g, color.b, color.r, color.g, color.b)
+	GameTooltip.hasBinding = true
 end
 
-function addon:ListBindingKeys(action)
-	GameTooltip:AddLine(addon:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-	for i, scope in ipairs(self.db.global.scopes) do
-		local key1, key2 = self:GetBindings(action, scope)
-		addBinding(action, key1, scope)
-		addBinding(action, key2, scope)
+function SpellBinding:ListBindingKeys(action)
+	GameTooltip.hasBinding = nil
+	GameTooltip:AddLine(self:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	for i, set in ipairs(self.db.global.sets) do
+		local key1, key2 = self:GetBindings(action, set)
+		addBinding(action, key1, set)
+		addBinding(action, key2, set)
 	end
 	action = self:GetActionString(action)
 	for i = 1, select("#", GetBindingKey(action)) do
 		addBinding(action, select(i, GetBindingKey(action)))
 	end
+	if not GameTooltip.hasBinding then
+		GameTooltip:AddLine(NOT_BOUND, GRAY_FONT_COLOR.r, GRAY_FONT_COLOR.g, GRAY_FONT_COLOR.b)
+	end
 	GameTooltip:Show()
 end
 
 -- get the first active key bound to the given action
-function addon:GetBindingKey(action)
+function SpellBinding:GetBindingKey(action)
 	local activeKey
-	local scopes = self.db.global.scopes
-	for i = #scopes, 1, -1 do
-		local scope = scopes[i]
-		local key1, key2 = self:GetBindings(action, scope)
+	local sets = self.db.global.sets
+	for i = #sets, 1, -1 do
+		local set = sets[i]
+		local key1, key2 = self:GetBindings(action, set)
 		local key = key1 or key2
 		if key then
 			return key
@@ -474,55 +412,55 @@ function addon:GetBindingKey(action)
 	return GetBindingKey(action)
 end
 
--- get the binding bound to the given key in the given scope
-function addon:GetBindingsByKey(key, scope)
-	scope = self.db[scope]
-	for action, key2 in pairs(scope.bindings) do
+-- get the binding bound to the given key in the given set
+function SpellBinding:GetBindingsByKey(key, set)
+	set = self.db[set]
+	for action, key2 in pairs(set.bindings) do
 		if key2 == key then
 			return action
 		end
-		if scope.secondaryBindings[action] == key then
+		if set.secondaryBindings[action] == key then
 			return action, true
 		end
 	end
 end
 
-function addon:GetConflictState(key)
+function SpellBinding:GetConflictState(key)
 	if not key then return end
-	local activeScope
-	local scopes = self:GetActiveScopes()
-	for i = #scopes, 1, -1 do
-		local scope = scopes[i]
-		local action = self:GetBindingsByKey(key, scope)
+	local activeSet
+	local sets = self:GetActiveSets()
+	for i = #sets, 1, -1 do
+		local set = sets[i]
+		local action = self:GetBindingsByKey(key, set)
 		if action then
-			return self:GetActionString(action), scope
+			return self:GetActionString(action), set
 		end
 	end
 	return GetBindingByKey(key)
 end
 
-function addon:GetConflictText(currentScope, newScope)
-	currentScope = addon.scopePriority[currentScope] or 0
-	newScope = addon.scopePriority[newScope]
-	if newScope > currentScope then
+function SpellBinding:GetConflictText(currentSet, newSet)
+	currentSet = self.setPriority[currentSet] or 0
+	newSet = self.setPriority[newSet]
+	if newSet > currentSet then
 		return "Will override %s"
-	elseif newScope < currentScope then
+	elseif newSet < currentSet then
 		return "Will be inactive (%s)", GRAY_FONT_COLOR_CODE
 	else
 		return "Will replace %s", BATTLENET_FONT_COLOR_CODE
 	end
 end
 
-function addon:GetActionString(action)
+function SpellBinding:GetActionString(action)
 	if action:match("^SPELL %d+$") then
 		action = action:gsub("%d+", GetSpellInfo)
 	end
 	return action
 end
 
-function addon:GetActionStringReverse(action)
-	for i, scope in ipairs(self.db.global.scopes) do
-		for action2 in pairs(self.db[scope].bindings) do
+function SpellBinding:GetActionStringReverse(action)
+	for i, set in ipairs(self.db.global.sets) do
+		for action2 in pairs(self.db[set].bindings) do
 			if self:GetActionString(action2) == action then
 				return action2
 			end
@@ -555,15 +493,12 @@ local getName = {
 local getTexture = {
 	SPELL = GetSpellTexture,
 	ITEM = GetItemIcon,
-	MACRO = function(data)
-		return select(2, GetMacroInfo(data))
-	end,
-	COMMAND = function()
-		return ""
-	end,
+	MACRO = function(data) return select(2, GetMacroInfo(data)) end,
+	COMMAND = function() return "Interface\\MacroFrame\\MacroFrame-Icon" end,
+	CLICK = function() return [[Interface\Icons\INV_Pet_LilSmokey2]] end,
 }
 
-function addon:GetActionInfo(action)
+function SpellBinding:GetActionInfo(action)
 	if not action then return end
 	local type, data = action:match("^(%u+) (.+)$")
 	local name, texture
@@ -578,7 +513,7 @@ function addon:GetActionInfo(action)
 	return name, texture, typeLabels[type]
 end
 
-function addon:GetActionLabel(action, noColor)
+function SpellBinding:GetActionLabel(action, noColor)
 	local name, _, type = self:GetActionInfo(action)
 	if type then
 		name = format("%s%s:|r %s", noColor and "" or LIGHTYELLOW_FONT_COLOR_CODE, type, name)
@@ -586,32 +521,32 @@ function addon:GetActionLabel(action, noColor)
 	return name
 end
 
-function addon:GetScopes()
-	return scopes
+function SpellBinding:GetSets()
+	return sets
 end
 
-function addon:GetActiveScopes()
-	return self.db.global.scopes
+function SpellBinding:GetActiveSets()
+	return self.db.global.sets
 end
 
-function addon:GetScopeLabel(scope)
-	return scopeLabels[scope]
+function SpellBinding:GetSetName(set)
+	return setNames[set]
 end
 
-function addon:GetBindingsForScope(scope)
-	return self.db[scope].bindings
+function SpellBinding:GetBindingsForSet(set)
+	return self.db[set].bindings
 end
 
-function addon:GetBindings(action, scope)
-	scope = self.db[scope]
-	local key = scope.bindings[action]
-	return key ~= true and key, scope.secondaryBindings[action]
+function SpellBinding:GetBindings(action, set)
+	set = self.db[set]
+	local key = set.bindings[action]
+	return key ~= true and key, set.secondaryBindings[action]
 end
 
-function addon:GetPrimaryBinding(action, scope)
-	return self.db[scope].bindings[action]
+function SpellBinding:GetPrimaryBinding(action, set)
+	return self.db[set].bindings[action]
 end
 
-function addon:GetSecondaryBinding(action, scope)
-	return self.db[scope].secondaryBindings[action]
+function SpellBinding:GetSecondaryBinding(action, set)
+	return self.db[set].secondaryBindings[action]
 end

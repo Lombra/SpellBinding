@@ -9,12 +9,11 @@
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\AceDB-3.0\AceDB-3.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\LibDualSpec-1.0\LibDualSpec-1.0.lua
-
-AceDBUI.lua
+Libs\Libra\Libra.xml
 
 Core.lua
 Bindings.lua
 Custom.lua
-Scoping.lua
-Options.lua
+Sets.lua
