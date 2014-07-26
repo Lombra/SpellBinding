@@ -187,11 +187,13 @@ end
 
 local setMenu = SpellBinding:CreateDropdown("Frame", overlay)
 setMenu:SetWidth(128)
-setMenu:SetLabel("Set")
+setMenu:SetLabel("Binding set")
 setMenu:JustifyText("LEFT")
 setMenu:SetPoint("BOTTOMLEFT", 0, 8)
 setMenu.initialize = function(self)
-	for i, v in pairs(SpellBinding.db.global.sets) do
+	local sets = SpellBinding.db.global.sets
+	for i = #sets, 1, -1 do
+		local v = sets[i]
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = SpellBinding:GetSetName(v)
 		info.func = onClick
@@ -409,14 +411,13 @@ do
 		
 		return button
 	end
+	scrollFrame:CreateButtons()
 	
 	local scrollBar = scrollFrame.scrollBar
 	scrollBar:ClearAllPoints()
 	scrollBar:SetPoint("TOPRIGHT", Bindings.Inset, 0, -18)
 	scrollBar:SetPoint("BOTTOMRIGHT", Bindings.Inset, 0, 16)
 	scrollBar.doNotHide = true
-	
-	scrollFrame:CreateButtons()
 end
 
 local customSort = {}

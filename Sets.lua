@@ -39,7 +39,7 @@ local function initializeSetMenu(self)
 		self:AddButton(info)
 	end
 	
-	for i, v in ipairs(SpellBinding:GetSets()) do
+	for i, v in ipairs(SpellBinding:GetAvailableSets()) do
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = SpellBinding:GetSetName(v)
 		info.func = onClick

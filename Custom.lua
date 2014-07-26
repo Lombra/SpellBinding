@@ -76,7 +76,9 @@ selectSetMenu.initialize = function(self)
 	
 	local currentAction, activeSet = SpellBinding:GetConflictState(self.key)
 	
-	for i, set in ipairs(SpellBinding.db.global.sets) do
+	local sets = SpellBinding.db.global.sets
+	for i = #sets, 1, -1 do
+		local set = sets[i]
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = SpellBinding:GetSetName(set)
 		info.value = set
