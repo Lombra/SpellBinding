@@ -521,7 +521,7 @@ function SpellBinding:GetActionLabel(action, noColor)
 	return name
 end
 
-function SpellBinding:GetSets()
+function SpellBinding:GetAvailableSets()
 	return sets
 end
 
