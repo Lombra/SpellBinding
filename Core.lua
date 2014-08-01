@@ -1,5 +1,7 @@
 local Libra = LibStub("Libra")
+
 local SpellBinding = Libra:NewAddon(...)
+_G.SpellBinding = SpellBinding
 Libra:EmbedWidgets(SpellBinding)
 
 local frame = SpellBinding:CreateUIPanel("SpellBindingFrame")
@@ -16,6 +18,7 @@ frame:SetScript("OnShow", function(self)
 	end
 end)
 frame:SetScript("OnHide", function(self)
+	SpellBinding:HideOverlays()
 	PlaySound("igCharacterInfoClose")
 end)
 
@@ -37,6 +40,8 @@ local dataobj = LibStub("LibDataBroker-1.1"):NewDataObject("SpellBinding", {
 	end,
 })
 
+local overlays = {}
+
 local backdrop = {
 	bgFile = [[Interface\Buttons\WHITE8X8]],
 	insets = {left = 4, right = 4, top = 0, bottom = 4}
@@ -54,6 +59,8 @@ function SpellBinding:CreateOverlay(parent, isBindingOverlay)
 	
 	overlay.text = overlay:CreateFontString(nil, nil, "GameFontHighlightLarge")
 	overlay.text:SetPoint("CENTER")
+	
+	tinsert(overlays, overlay)
 	
 	return overlay
 end
@@ -160,10 +167,18 @@ function SpellBinding:CreateBindingOverlay(parent)
 	return overlay
 end
 
-local combatBlock = SpellBinding:CreateOverlay(frame)
+function SpellBinding:HideOverlays()
+	for i, overlay in ipairs(overlays) do
+		if not overlay.noHide then
+			overlay:Hide()
+		end
+	end
+end
 
+local combatBlock = SpellBinding:CreateOverlay(frame)
 combatBlock.text:SetFontObject("GameFontNormalMed3")
 combatBlock.text:SetText("Keybinding blocked during combat")
+combatBlock.noHide = true
 
 function frame:OnTabSelected(id)
 	self.tabs[id].frame:Show()
@@ -171,6 +186,7 @@ end
 
 function frame:OnTabDeselected(id)
 	self.tabs[id].frame:Hide()
+	SpellBinding:HideOverlays()
 end
 
 
@@ -265,6 +281,7 @@ function SpellBinding:OnModuleCreated(name, module)
 end
 
 function SpellBinding:PLAYER_REGEN_DISABLED()
+	SpellBinding:HideOverlays()
 	combatBlock:Show()
 end
 

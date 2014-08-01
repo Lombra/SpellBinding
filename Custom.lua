@@ -69,7 +69,7 @@ selectSetMenu.xOffset = 0
 selectSetMenu.yOffset = 0
 selectSetMenu.initialize = function(self)
 	local info = UIDropDownMenu_CreateInfo()
-	info.text = "Select set"
+	info.text = "Select binding set"
 	info.isTitle = true
 	info.notCheckable = true
 	self:AddButton(info)
@@ -205,6 +205,11 @@ local function createButton()
 	return button
 end
 
+Custom:SetScript("OnHide", function(self)
+	selectSetMenu:Close()
+	menu:Close()
+end)
+
 local defaults = {
 	global = {
 		keys = {},
@@ -222,7 +227,14 @@ function Custom:OnInitialize()
 	rowsSlider:SetValue(self.db.global.gridRows)
 	columnsSlider:SetValue(self.db.global.gridColumns)
 	
+	self:RegisterEvent("PLAYER_REGEN_DISABLED")
+	
 	self:UpdateGrid()
+end
+
+function Custom:PLAYER_REGEN_DISABLED()
+	selectSetMenu:Close()
+	menu:Close()
 end
 
 local XPADDING = 10
