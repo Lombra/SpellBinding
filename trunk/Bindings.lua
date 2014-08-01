@@ -122,18 +122,18 @@ do	-- click binding
 		end
 	end)
 
-	local new = SpellBinding:CreateButton(Bindings)
-	new:SetWidth(80)
-	new:SetPoint("TOPLEFT", 16, -32)
-	new:SetText("Bind click")
-	new:SetScript("OnClick", function()
+	local bindClickButton = SpellBinding:CreateButton(Bindings)
+	bindClickButton:SetWidth(80)
+	bindClickButton:SetPoint("TOPLEFT", 16, -32)
+	bindClickButton:SetText("Bind click")
+	bindClickButton:SetScript("OnClick", function()
 		clickBind:Show()
 	end)
-	new:SetScript("OnEnter", function(self)
+	bindClickButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText("Bind the clicking of a button frame")
 	end)
-	new:SetScript("OnLeave", GameTooltip_Hide)
+	bindClickButton:SetScript("OnLeave", GameTooltip_Hide)
 end
 
 local overlay = SpellBinding:CreateBindingOverlay(Bindings)
@@ -183,6 +183,9 @@ hintClose:SetText("Press Escape to cancel")
 local function onClick(self, set)
 	self.owner:SetText(SpellBinding:GetSetName(set))
 	newSet = set
+	if currentKey and currentKey ~= true then
+		overlay:OnBinding(currentKey)
+	end
 end
 
 local setMenu = SpellBinding:CreateDropdown("Frame", overlay)
@@ -205,73 +208,73 @@ end
 
 local scrollFrame
 
-do
-	local options = {
-		{
-			text = "Set secondary binding",
-			func = function(self, action, set)
-				currentAction = action
-				currentSet = set
-				newSet = set
-				isSecondary = true
-				setMenu:Hide()
-				overlay:Show()
-			end,
-			primary = true,
-		},
-		{
-			text = "Unbind",
-			func = function(self, action, set)
-				SpellBinding:ClearBindings(action, set)
-				SpellBinding:ApplyBindings()
-			end,
-		},
-		{
-			text = "Unbind primary binding",
-			func = function(self, action, set)
-				SpellBinding:ClearBinding(action, set)
-				SpellBinding:ApplyBindings()
-			end,
-			secondary = true,
-		},
-		{
-			text = "Unbind secondary binding",
-			func = function(self, action, set)
-				SpellBinding:ClearBinding(action, set, true)
-				SpellBinding:ApplyBindings()
-			end,
-			secondary = true,
-		},
-		{
-			text = "Remove",
-			func = function(self, action, set)
-				SpellBinding:ClearBindings(action, set)
-				SpellBinding.db[set].bindings[action] = nil
-				SpellBinding:ApplyBindings()
-			end,
-		},
-	}
+local options = {
+	{
+		text = "Set secondary binding",
+		func = function(self, action, set)
+			currentAction = action
+			currentSet = set
+			newSet = set
+			isSecondary = true
+			setMenu:Hide()
+			overlay:Show()
+		end,
+		primary = true,
+	},
+	{
+		text = "Unbind",
+		func = function(self, action, set)
+			SpellBinding:ClearBindings(action, set)
+			SpellBinding:ApplyBindings()
+		end,
+	},
+	{
+		text = "Unbind primary binding",
+		func = function(self, action, set)
+			SpellBinding:ClearBinding(action, set)
+			SpellBinding:ApplyBindings()
+		end,
+		secondary = true,
+	},
+	{
+		text = "Unbind secondary binding",
+		func = function(self, action, set)
+			SpellBinding:ClearBinding(action, set, true)
+			SpellBinding:ApplyBindings()
+		end,
+		secondary = true,
+	},
+	{
+		text = "Remove",
+		func = function(self, action, set)
+			SpellBinding:ClearBindings(action, set)
+			SpellBinding.db[set].bindings[action] = nil
+			SpellBinding:ApplyBindings()
+		end,
+	},
+}
+
+local menu = SpellBinding:CreateDropdown("Menu")
+menu.xOffset = 0
+menu.yOffset = 0
+menu.initialize = function(self)
+	local button = UIDROPDOWNMENU_MENU_VALUE
+	local key1, key2 = SpellBinding:GetBindings(button.binding, button.set)
 	
-	local menu = SpellBinding:CreateDropdown("Menu")
-	menu.xOffset = 0
-	menu.yOffset = 0
-	menu.initialize = function(self)
-		local button = UIDROPDOWNMENU_MENU_VALUE
-		local key1, key2 = SpellBinding:GetBindings(button.binding, button.set)
-		
-		for i, option in ipairs(options) do
-			if (not option.primary or key1) and (not option.secondary or key2) then
-				local info = UIDropDownMenu_CreateInfo()
-				info.text = option.text
-				info.func = option.func
-				info.arg1 = button.binding
-				info.arg2 = button.set
-				info.notCheckable = true
-				self:AddButton(info)
-			end
+	for i, option in ipairs(options) do
+		if (not option.primary or key1) and (not option.secondary or key2) then
+			local info = UIDropDownMenu_CreateInfo()
+			info.text = option.text
+			info.func = option.func
+			info.arg1 = button.binding
+			info.arg2 = button.set
+			info.notCheckable = true
+			self:AddButton(info)
 		end
 	end
-	
+end
+
+do
 	local function onClick(self, button)
 		if GetCursorInfo() then
 			dropAction(self, button)
@@ -298,15 +301,22 @@ do
 		-- GameTooltip:AddLine("Left click to set binding")
 		-- GameTooltip:AddLine("Right click for options")
 		GameTooltip:Show()
-		self.showingTooltip = true
 	end
 	
-	local function onLeave(self)
-		GameTooltip:Hide()
-		self.showingTooltip = false
+	scrollFrame = SpellBinding:CreateScrollFrame("Hybrid", Bindings)
+	scrollFrame:SetPoint("TOPLEFT", Bindings.Inset, 4, -4)
+	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -20, 4)
+	scrollFrame:SetScript("OnMouseUp", dropAction)
+	scrollFrame:SetScript("OnReceiveDrag", dropAction)
+	scrollFrame:SetButtonHeight(18)
+	scrollFrame.initialOffsetX = 2
+	scrollFrame.initialOffsetY = -1
+	scrollFrame.offsetY = -2
+	scrollFrame.getNumItems = function()
+		return #list
 	end
-	
-	local function updateButton(button, object)
+	scrollFrame.updateButton = function(button, index)
+		local object = list[index]
 		local isHeader = not object.action
 		if isHeader then
 			button:EnableDrawLayer("BACKGROUND")
@@ -335,7 +345,7 @@ do
 		button.set = object.set
 		button.isHeader = isHeader
 		
-		if button.showingTooltip then
+		if GetMouseFocus() == button then
 			if isHeader then
 				GameTooltip:Hide()
 			else
@@ -343,38 +353,12 @@ do
 			end
 		end
 	end
-	
-	scrollFrame = SpellBinding:CreateScrollFrame("Hybrid", Bindings)
-	scrollFrame:SetPoint("TOPLEFT", Bindings.Inset, 4, -4)
-	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -20, 4)
-	scrollFrame:SetScript("OnMouseUp", dropAction)
-	scrollFrame:SetScript("OnReceiveDrag", dropAction)
-	scrollFrame:SetButtonHeight(18)
-	scrollFrame.initialOffsetX = 2
-	scrollFrame.initialOffsetY = -1
-	scrollFrame.offsetY = -2
-	scrollFrame.update = function()
-		local offset = scrollFrame:GetOffset()
-		local buttons = scrollFrame.buttons
-		local numButtons = #buttons
-		for i = 1, numButtons do
-			local button = buttons[i]
-			local index = offset + i
-			local object = list[index]
-			if object then
-				updateButton(button, object)
-			end
-			button:SetShown(object ~= nil)
-		end
-		
-		HybridScrollFrame_Update(scrollFrame, #list * scrollFrame.buttonHeight, numButtons * scrollFrame.buttonHeight)
-	end
 	scrollFrame.createButton = function(parent)
 		local button = CreateFrame("Button", nil, parent)
 		button:SetPoint("RIGHT", -5, 0)
 		button:SetScript("OnClick", onClick)
 		button:SetScript("OnEnter", onEnter)
-		button:SetScript("OnLeave", onLeave)
+		button:SetScript("OnLeave", GameTooltip_Hide)
 		button:SetScript("OnReceiveDrag", dropAction)
 		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		button:SetPushedTextOffset(0, 0)
@@ -418,6 +402,18 @@ do
 	scrollBar:SetPoint("TOPRIGHT", Bindings.Inset, 0, -18)
 	scrollBar:SetPoint("BOTTOMRIGHT", Bindings.Inset, 0, 16)
 	scrollBar.doNotHide = true
+end
+
+Bindings:SetScript("OnHide", function(self)
+	menu:Close()
+end)
+
+function Bindings:OnInitialize()
+	self:RegisterEvent("PLAYER_REGEN_DISABLED")
+end
+
+function Bindings:PLAYER_REGEN_DISABLED()
+	menu:Close()
 end
 
 local customSort = {}
