@@ -1,6 +1,6 @@
 local _, SpellBinding = ...
 
-local currentKey, currentAction, currentSet, newSet, isSecondary
+local newKey, currentAction, currentSet, newSet, isSecondary
 local list
 
 local Bindings = SpellBinding:NewModule("Bindings", CreateFrame("Frame"))
@@ -45,11 +45,11 @@ do	-- click binding
 	local clickBind = SpellBinding:CreateOverlay(Bindings)
 	
 	local info = clickBind:CreateFontString(nil, nil, "GameFontNormal")
-	info:SetPoint("CENTER", 0, 24)
+	info:SetPoint("CENTER", 0, 48)
 	info:SetText("Click a button frame")
 	
 	local hintClose = clickBind:CreateFontString(nil, nil, "GameFontDisable")
-	hintClose:SetPoint("CENTER", 0, -24)
+	hintClose:SetPoint("CENTER")
 	hintClose:SetText("Press Escape to cancel")
 	
 	local mouseButtons = {
@@ -143,48 +143,53 @@ overlay.OnAccept = function(self)
 		SpellBinding.db[currentSet].bindings[currentAction] = nil
 	end
 	if isSecondary then
-		SpellBinding:SetSecondaryBinding(currentAction, newSet, currentKey)
+		SpellBinding:SetSecondaryBinding(currentAction, newSet, newKey)
 	else
-		SpellBinding:SetPrimaryBinding(currentAction, newSet, currentKey)
+		SpellBinding:SetPrimaryBinding(currentAction, newSet, newKey)
 	end
 end
 overlay.OnBinding = function(self, keyPressed)
-	currentKey = keyPressed
+	newKey = keyPressed
 	self:SetBindingKeyText(keyPressed)
-	local previousAction, activeSet = SpellBinding:GetConflictState(currentKey)
+	local text1, text2
+	local previousAction, activeSet = SpellBinding:GetConflictState(newKey)
 	if previousAction and previousAction ~= SpellBinding:GetActionString(currentAction) then
-		self.replace:SetFormattedText(SpellBinding:GetConflictText(activeSet, newSet), SpellBinding:GetActionLabel(previousAction, true))
-	else
-		self.replace:SetText()
+		text1, text2 = SpellBinding:GetConflictText(previousAction, newKey, activeSet, newSet)
+		if newSet == activeSet then
+			text1 = text2
+			text2 = nil
+		end
 	end
+	self.conflict1:SetText(text1)
+	self.conflict2:SetText(text2)
 end
 overlay:SetScript("OnShow", function(self)
 	if isSecondary then
-		currentKey = SpellBinding:GetSecondaryBinding(currentAction, currentSet)
+		newKey = SpellBinding:GetSecondaryBinding(currentAction, currentSet)
 	else
-		currentKey = SpellBinding:GetPrimaryBinding(currentAction, currentSet)
+		newKey = SpellBinding:GetPrimaryBinding(currentAction, currentSet)
 	end
 	self:SetBindingActionText(SpellBinding:GetActionLabel(currentAction))
-	self:SetBindingKeyText(currentKey ~= true and currentKey)
-	self.replace:SetText()
+	self:SetBindingKeyText(newKey ~= true and newKey)
+	self.conflict1:SetText()
+	self.conflict2:SetText()
 end)
 overlay:SetScript("OnHide", function(self)
-	currentKey = nil
+	newKey = nil
 	isSecondary = nil
 end)
 
-overlay.replace = overlay:CreateFontString(nil, nil, "GameFontRed")
-overlay.replace:SetPoint("CENTER", 0, -48)
+overlay.conflict1 = overlay:CreateFontString(nil, nil, "GameFontNormal")
+overlay.conflict1:SetPoint("CENTER", 0, -48)
 
-local hintClose = overlay:CreateFontString(nil, nil, "GameFontDisable")
-hintClose:SetPoint("CENTER", 0, -72)
-hintClose:SetText("Press Escape to cancel")
+overlay.conflict2 = overlay:CreateFontString(nil, nil, "GameFontNormal")
+overlay.conflict2:SetPoint("CENTER", 0, -72)
 
 local function onClick(self, set)
 	self.owner:SetText(SpellBinding:GetSetName(set))
 	newSet = set
-	if currentKey and currentKey ~= true then
-		overlay:OnBinding(currentKey)
+	if newKey and newKey ~= true then
+		overlay:OnBinding(newKey)
 	end
 end
 
@@ -333,13 +338,16 @@ do
 			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
 			
 			local key = SpellBinding:GetBindingKey(object.action)
+			local key1, key2 = SpellBinding:GetBindings(object.action, object.set)
+			local key = key1 or key2
 			local isInactive = key and GetBindingByKey(key) ~= SpellBinding:GetActionString(object.action)
 			local name, texture, type = SpellBinding:GetActionInfo(object.action)
 			button.label:SetFontObject(isInactive and GameFontDisable or GameFontHighlight)
-			button.label:SetText(SpellBinding:GetActionLabel(object.action))
+			button.label:SetText(SpellBinding:GetActionLabel(object.action, isInactive))
 			button.info:SetFontObject((isInactive or not key) and GameFontDisableSmall or GameFontNormalSmall)
 			button.info:SetText(GetBindingText(key or NOT_BOUND, "KEY_"))
 			button.icon:SetTexture(texture)
+			button.icon:SetDesaturated(isInactive)
 		end
 		button.binding = object.action
 		button.set = object.set
@@ -430,19 +438,15 @@ end
 local function listSort(a, b)
 	if a.set == b.set then
 		if not a.action and b.action then return true end
-		if not SpellBinding:GetActionInfo(a.action) then if a.action then print(a.action) end return end
-		if not SpellBinding:GetActionInfo(b.action) then if b.action then print(b.action) end return end
+		if not (SpellBinding:GetActionInfo(a.action) and SpellBinding:GetActionInfo(b.action)) then return end
 		return SpellBinding:GetActionInfo(a.action) < SpellBinding:GetActionInfo(b.action)
 	else
 		return customSort[a.set] > customSort[b.set]
 	end
 end
 
-local usedActions = {}
-
 function Bindings:UpdateList()
 	list = {}
-	wipe(usedActions)
 	local sets = SpellBinding.db.global.sets
 	for i = #sets, 1, -1 do
 		local set = sets[i]
@@ -454,14 +458,10 @@ function Bindings:UpdateList()
 				})
 			end
 			for action in pairs(bindings) do
-				-- don't duplicate if included in more than one set
-				if not usedActions[action] then
-					tinsert(list, {
-						action = action,
-						set = set,
-					})
-					usedActions[action] = true
-				end
+				tinsert(list, {
+					action = action,
+					set = set,
+				})
 			end
 		end
 	end

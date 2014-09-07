@@ -58,7 +58,7 @@ function SpellBinding:CreateOverlay(parent, isBindingOverlay)
 	overlay:Hide()
 	
 	overlay.text = overlay:CreateFontString(nil, nil, "GameFontHighlightLarge")
-	overlay.text:SetPoint("CENTER")
+	overlay.text:SetPoint("CENTER", 0, 24)
 	
 	tinsert(overlays, overlay)
 	
@@ -149,13 +149,17 @@ function SpellBinding:CreateBindingOverlay(parent)
 	end
 	
 	local info = overlay:CreateFontString(nil, nil, "GameFontNormal")
-	info:SetPoint("CENTER", 0, 24)
+	info:SetPoint("CENTER", 0, 48)
 	info:SetText("Press a key to bind")
 	
 	overlay.actionName = overlay.text
 	
 	overlay.key = overlay:CreateFontString(nil, nil, "GameFontNormal")
-	overlay.key:SetPoint("CENTER", 0, -24)
+	overlay.key:SetPoint("CENTER")
+	
+	local closeHint = overlay:CreateFontString(nil, nil, "GameFontDisable")
+	closeHint:SetPoint("CENTER", 0, -24)
+	closeHint:SetText("Press Escape to cancel")
 	
 	local acceptButton = self:CreateButton(overlay)
 	acceptButton:SetWidth(80)
@@ -399,7 +403,9 @@ end
 function SpellBinding:ListBindingKeys(action)
 	GameTooltip.hasBinding = nil
 	GameTooltip:AddLine(self:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-	for i, set in ipairs(self.db.global.sets) do
+	local sets = self.db.global.sets
+	for i = #sets, 1, -1 do
+		local set = sets[i]
 		local key1, key2 = self:GetBindings(action, set)
 		addBinding(action, key1, set)
 		addBinding(action, key2, set)
@@ -453,19 +459,28 @@ function SpellBinding:GetConflictState(key)
 			return self:GetActionString(action), set
 		end
 	end
-	return GetBindingByKey(key)
+	local action = GetBindingAction(key)
+	return action ~= "" and action
 end
 
-function SpellBinding:GetConflictText(currentSet, newSet)
-	currentSet = self.setPriority[currentSet] or 0
-	newSet = self.setPriority[newSet]
-	if newSet > currentSet then
-		return "Will override %s"
-	elseif newSet < currentSet then
-		return "Will be inactive (%s)", GRAY_FONT_COLOR_CODE
-	else
-		return "Will replace %s", BATTLENET_FONT_COLOR_CODE
+function SpellBinding:GetConflictText(activeAction, key, currentSet, newSet)
+	local text1, text2
+	local currentAction = self:GetBindingsByKey(key, newSet)
+	if currentAction then
+		text2 = format(RED_FONT_COLOR_CODE.."Unbinds %s (%s)", self:GetActionLabel(currentAction, true), self:GetSetName(newSet))
 	end
+	local currentSetPriority = self.setPriority[currentSet] or 0
+	local newSetPriority = self.setPriority[newSet]
+	if newSetPriority < currentSetPriority then
+		text1 = "%s (%s) overrides this"
+	else
+		if currentSetPriority > 0 then
+			text1 = "Overrides %s (%s)"
+		else
+			text1 = "Overrides %s"
+		end
+	end
+	return format(YELLOW_FONT_COLOR_CODE..text1, self:GetActionLabel(activeAction, true), self:GetSetName(currentSet)), text2
 end
 
 function SpellBinding:GetActionString(action)
@@ -511,7 +526,7 @@ local getTexture = {
 	SPELL = GetSpellTexture,
 	ITEM = GetItemIcon,
 	MACRO = function(data) return select(2, GetMacroInfo(data)) end,
-	COMMAND = function() return "Interface\\MacroFrame\\MacroFrame-Icon" end,
+	COMMAND = function() return [[Interface\MacroFrame\MacroFrame-Icon]] end,
 	CLICK = function() return [[Interface\Icons\INV_Pet_LilSmokey2]] end,
 }
 
@@ -533,7 +548,7 @@ end
 function SpellBinding:GetActionLabel(action, noColor)
 	local name, _, type = self:GetActionInfo(action)
 	if type then
-		name = format("%s%s:|r %s", noColor and "" or LIGHTYELLOW_FONT_COLOR_CODE, type, name)
+		name = format("%s%s:%s %s", noColor and "" or LIGHTYELLOW_FONT_COLOR_CODE, type, noColor and "" or "|r", name)
 	end
 	return name
 end

@@ -56,10 +56,6 @@ overlay:SetScript("OnHide", function(self)
 	currentKey = nil
 end)
 
-local hintClose = overlay:CreateFontString(nil, nil, "GameFontDisable")
-hintClose:SetPoint("CENTER", 0, -48)
-hintClose:SetText("Press Escape to cancel")
-
 local function onClick(self, key, action)
 	SpellBinding:SetPrimaryBinding(action, self.value, key)
 end
@@ -87,11 +83,19 @@ selectSetMenu.initialize = function(self)
 		info.arg2 = self.action
 		info.notCheckable = true
 		if currentAction then
-			local conflict, color = SpellBinding:GetConflictText(activeSet, set)
+			local newSetName = SpellBinding:GetSetName(set)
 			info.colorCode = color
-			info.tooltipTitle = format(conflict, SpellBinding:GetActionLabel(currentAction))
-			-- info.tooltipText = format(conflict, currentAction)
-			info.tooltipOnButton = true
+			info.tooltipTitle = format("Bind %s to |cffffd200%s|r (%s)", SpellBinding:GetActionLabel(self.action), GetBindingText(self.key, "KEY_"), newSetName)
+			if currentAction ~= SpellBinding:GetActionString(self.action) then
+				local text1, text2 = SpellBinding:GetConflictText(currentAction, self.key, activeSet, set)
+				if set ~= activeSet then
+					info.tooltipText = text1
+				end
+				if text2 then
+					info.tooltipText = (info.tooltipText or "").."\n"..text2
+				end
+			end
+			info.tooltipLines = true
 		end
 		self:AddButton(info)
 	end
