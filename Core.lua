@@ -195,26 +195,26 @@ end
 
 
 local sets = {
-	"global",
-	"realm",
-	"faction",
-	"factionrealm",
-	"race",
-	"class",
-	"char",
 	-- "profile",
+	"char",
+	"class",
+	"race",
+	"factionrealm",
+	"faction",
+	"realm",
+	"global",
 }
 
 local setNames = {
-	global = "Global",
-	realm = "Realm",
-	faction = "Faction",
-	factionrealm = "Faction - realm",
-	race = "Race",
-	class = "Class",
-	char = "Character",
-	profile = "Profile",
 	percharprofile = "Profile",
+	profile = "Profile",
+	char = "Character",
+	class = "Class",
+	race = "Race",
+	factionrealm = "Faction - realm",
+	faction = "Faction",
+	realm = "Realm",
+	global = "Global",
 }
 
 local defaults = {}
@@ -231,7 +231,7 @@ defaults.global.sets = {
 }
 
 -- insert after so it doesn't get included in defaults since it's not a real datatype
-tinsert(sets, "percharprofile")
+tinsert(sets, 1, "percharprofile")
 
 local percharDefaults = {
 	profile = {
@@ -307,7 +307,7 @@ function SpellBinding:Fire(callback)
 end
 
 function SpellBinding:IsSetActive(set)
-	for i, v in ipairs(self.db.global.sets) do
+	for i, v in SpellBinding:IterateActiveSets() do
 		if v == set then
 			return true
 		end
@@ -316,8 +316,9 @@ end
 
 function SpellBinding:ApplyBindings()
 	ClearOverrideBindings(frame)
-	for i, set in ipairs(self.db.global.sets) do
-		set = self.db[set]
+	local sets = SpellBinding.db.global.sets
+	for i = #sets, 1, -1 do
+		local set = self.db[sets[i]]
 		for action, key in pairs(set.bindings) do
 			self:ApplyBinding(key, action)
 			self:ApplyBinding(set.secondaryBindings[action], action)
@@ -345,9 +346,11 @@ function SpellBinding:SetBinding(action, set, key, forcePrimary)
 end
 
 function SpellBinding:SetPrimaryBinding(action, set, key)
+	local sets = self:GetActiveSets()
+	set = set or sets[#sets]
 	key = key or self.db[set].bindings[action]
 	
-	local currentAction, isSecondary = self:GetBindingsByKey(key, set)
+	local currentAction, isSecondary = self:GetActionByKey(key, set)
 	if currentAction ~= action or isSecondary then
 		self:ClearBinding(currentAction, set, isSecondary)
 	end
@@ -358,9 +361,11 @@ function SpellBinding:SetPrimaryBinding(action, set, key)
 end
 
 function SpellBinding:SetSecondaryBinding(action, set, key)
+	local sets = self:GetActiveSets()
+	set = set or sets[#sets]
 	-- key = key or self.db[set].bindings[action]
 	
-	local currentAction, isSecondary = self:GetBindingsByKey(key, set)
+	local currentAction, isSecondary = self:GetActionByKey(key, set)
 	if currentAction ~= action then
 		self:ClearBinding(currentAction, set, isSecondary)
 	end
@@ -403,9 +408,7 @@ end
 function SpellBinding:ListBindingKeys(action)
 	GameTooltip.hasBinding = nil
 	GameTooltip:AddLine(self:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-	local sets = self.db.global.sets
-	for i = #sets, 1, -1 do
-		local set = sets[i]
+	for i, set in SpellBinding:IterateActiveSets() do
 		local key1, key2 = self:GetBindings(action, set)
 		addBinding(action, key1, set)
 		addBinding(action, key2, set)
@@ -423,9 +426,7 @@ end
 -- get the first active key bound to the given action
 function SpellBinding:GetBindingKey(action)
 	local activeKey
-	local sets = self.db.global.sets
-	for i = #sets, 1, -1 do
-		local set = sets[i]
+	for i, set in SpellBinding:IterateActiveSets() do
 		local key1, key2 = self:GetBindings(action, set)
 		local key = key1 or key2
 		if key then
@@ -436,7 +437,7 @@ function SpellBinding:GetBindingKey(action)
 end
 
 -- get the binding bound to the given key in the given set
-function SpellBinding:GetBindingsByKey(key, set)
+function SpellBinding:GetActionByKey(key, set)
 	set = self.db[set]
 	for action, key2 in pairs(set.bindings) do
 		if key2 == key then
@@ -448,13 +449,11 @@ function SpellBinding:GetBindingsByKey(key, set)
 	end
 end
 
-function SpellBinding:GetConflictState(key)
+function SpellBinding:GetActiveActionForKey(key)
 	if not key then return end
 	local activeSet
-	local sets = self:GetActiveSets()
-	for i = #sets, 1, -1 do
-		local set = sets[i]
-		local action = self:GetBindingsByKey(key, set)
+	for i, set in SpellBinding:IterateActiveSets() do
+		local action = self:GetActionByKey(key, set)
 		if action then
 			return self:GetActionString(action), set
 		end
@@ -463,24 +462,28 @@ function SpellBinding:GetConflictState(key)
 	return action ~= "" and action
 end
 
-function SpellBinding:GetConflictText(activeAction, key, currentSet, newSet)
+function SpellBinding:GetConflictText(key, action, newSet, activeAction, currentSet)
 	local text1, text2
-	local currentAction = self:GetBindingsByKey(key, newSet)
-	if currentAction then
+	local currentSetPriority = self.setPriority[currentSet] or math.huge
+	local newSetPriority = self.setPriority[newSet] or math.huge
+	local currentAction = self:GetActionByKey(key, newSet)
+	if activeAction and activeAction ~= self:GetActionString(action) and (not currentAction or self:GetActionString(currentAction) ~= activeAction) then
+		if newSetPriority > currentSetPriority then
+			text1 = "%s (%s) overrides this"
+		else
+			if currentSetPriority > math.huge then
+				text1 = "Overrides %s (%s)"
+			else
+				text1 = "Overrides %s"
+			end
+		end
+		text1 = format(YELLOW_FONT_COLOR_CODE..text1, self:GetActionLabel(activeAction, true), self:GetSetName(currentSet))
+	end
+	-- only care about unbinding if it's actually a different action
+	if currentAction and currentAction ~= action then
 		text2 = format(RED_FONT_COLOR_CODE.."Unbinds %s (%s)", self:GetActionLabel(currentAction, true), self:GetSetName(newSet))
 	end
-	local currentSetPriority = self.setPriority[currentSet] or 0
-	local newSetPriority = self.setPriority[newSet]
-	if newSetPriority < currentSetPriority then
-		text1 = "%s (%s) overrides this"
-	else
-		if currentSetPriority > 0 then
-			text1 = "Overrides %s (%s)"
-		else
-			text1 = "Overrides %s"
-		end
-	end
-	return format(YELLOW_FONT_COLOR_CODE..text1, self:GetActionLabel(activeAction, true), self:GetSetName(currentSet)), text2
+	return text1, text2
 end
 
 function SpellBinding:GetActionString(action)
@@ -491,10 +494,10 @@ function SpellBinding:GetActionString(action)
 end
 
 function SpellBinding:GetActionStringReverse(action)
-	for i, set in ipairs(self.db.global.sets) do
-		for action2 in pairs(self.db[set].bindings) do
-			if self:GetActionString(action2) == action then
-				return action2
+	for i, set in SpellBinding:IterateActiveSets() do
+		for k in pairs(self.db[set].bindings) do
+			if self:GetActionString(k) == action then
+				return k
 			end
 		end
 	end
@@ -559,6 +562,14 @@ end
 
 function SpellBinding:GetActiveSets()
 	return self.db.global.sets
+end
+
+function SpellBinding:IterateActiveSets()
+	return ipairs(self:GetActiveSets())
+end
+
+function SpellBinding:GetNumActiveSets()
+	return #self:GetActiveSets()
 end
 
 function SpellBinding:GetSetName(set)

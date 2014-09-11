@@ -13,10 +13,6 @@ local hintNoBindings = Bindings:CreateFontString(nil, nil, "GameFontNormalMed3")
 hintNoBindings:SetPoint("CENTER", Bindings.Inset)
 hintNoBindings:SetText("Drag something here to bind it")
 
-local hintNoSets = Bindings:CreateFontString(nil, nil, "GameFontNormalMed3")
-hintNoSets:SetPoint("CENTER", Bindings.Inset)
-hintNoSets:SetText("No binding sets are active")
-
 local function dropAction(self, button)
 	if button == "LeftButton" or not button then
 		local action
@@ -28,12 +24,11 @@ local function dropAction(self, button)
 		elseif type == "macro" then
 			action = "MACRO "..GetMacroInfo(data)
 		end
-		local sets = SpellBinding.db.global.sets
-		if not action or #sets == 0 then
+		if not action then
 			return
 		end
 		-- if dropped on empty space, use lowest priority active set
-		SpellBinding:SetPrimaryBinding(action, self.set or sets[1])
+		SpellBinding:SetPrimaryBinding(action, self.set)
 		Bindings:UpdateList()
 	end
 	ClearCursor()
@@ -107,7 +102,7 @@ do	-- click binding
 			for i = 1, 31 do
 				local button = mouseButtons[i] or "Button"..i
 				if IsMouseButtonDown(button) then
-					SpellBinding:SetPrimaryBinding(format("CLICK %s:%s", currentFocus:GetName(), button), "global")
+					SpellBinding:SetPrimaryBinding(format("CLICK %s:%s", currentFocus:GetName(), button))
 					Bindings:UpdateList()
 					cancelFrameSelection()
 					break
@@ -138,6 +133,10 @@ end
 
 local overlay = SpellBinding:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
+	-- if not SpellBinding:IsSetActive(newSet) then
+		-- tinsert(SpellBinding:GetActiveSets(), 1, newSet)
+		-- SpellBinding:Fire("SET_ACTIVATED")
+	-- end
 	if newSet ~= currentSet then
 		SpellBinding:ClearBindings(currentAction, currentSet)
 		SpellBinding.db[currentSet].bindings[currentAction] = nil
@@ -151,14 +150,11 @@ end
 overlay.OnBinding = function(self, keyPressed)
 	newKey = keyPressed
 	self:SetBindingKeyText(keyPressed)
-	local text1, text2
-	local previousAction, activeSet = SpellBinding:GetConflictState(newKey)
-	if previousAction and previousAction ~= SpellBinding:GetActionString(currentAction) then
-		text1, text2 = SpellBinding:GetConflictText(previousAction, newKey, activeSet, newSet)
-		if newSet == activeSet then
-			text1 = text2
-			text2 = nil
-		end
+	local activeAction, activeSet = SpellBinding:GetActiveActionForKey(newKey)
+	local text1, text2 = SpellBinding:GetConflictText(newKey, currentAction, newSet, activeAction, activeSet)
+	if not text1 then
+		text1 = text2
+		text2 = nil
 	end
 	self.conflict1:SetText(text1)
 	self.conflict2:SetText(text2)
@@ -199,9 +195,7 @@ setMenu:SetLabel("Binding set")
 setMenu:JustifyText("LEFT")
 setMenu:SetPoint("BOTTOMLEFT", 0, 8)
 setMenu.initialize = function(self)
-	local sets = SpellBinding.db.global.sets
-	for i = #sets, 1, -1 do
-		local v = sets[i]
+	for i, v in SpellBinding:IterateActiveSets() do
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = SpellBinding:GetSetName(v)
 		info.func = onClick
@@ -209,6 +203,21 @@ setMenu.initialize = function(self)
 		info.checked = (v == newSet)
 		self:AddButton(info)
 	end
+	-- local sets =  SpellBinding:GetAvailableSets()
+	-- for i = #sets, 1, -1 do
+		-- local v = sets[i]
+		-- if not SpellBinding:IsSetActive(v) then
+			-- local info = UIDropDownMenu_CreateInfo()
+			-- info.text = SpellBinding:GetSetName(v)
+			-- info.func = onClick
+			-- info.arg1 = v
+			-- info.checked = (v == newSet)
+			-- info.colorCode = LIGHTYELLOW_FONT_COLOR_CODE
+			-- info.tooltipTitle = "Create binding set"
+			-- info.tooltipOnButton = true
+			-- self:AddButton(info)
+		-- end
+	-- end
 end
 
 local scrollFrame
@@ -430,45 +439,40 @@ SpellBinding.setPriority = customSort
 -- reverse the tables for easier use
 function SpellBinding:UpdateSortOrder()
 	wipe(customSort)
-	for i, v in ipairs(self.db.global.sets) do
-		customSort[v] = i
+	for i, set in SpellBinding:IterateActiveSets() do
+		customSort[set] = i
 	end
 end
 
 local function listSort(a, b)
-	if a.set == b.set then
+	if a.set ~= b.set then
+		return customSort[a.set] < customSort[b.set]
+	else
 		if not a.action and b.action then return true end
 		if not (SpellBinding:GetActionInfo(a.action) and SpellBinding:GetActionInfo(b.action)) then return end
 		return SpellBinding:GetActionInfo(a.action) < SpellBinding:GetActionInfo(b.action)
-	else
-		return customSort[a.set] > customSort[b.set]
 	end
 end
 
 function Bindings:UpdateList()
 	list = {}
-	local sets = SpellBinding.db.global.sets
-	for i = #sets, 1, -1 do
-		local set = sets[i]
-		if SpellBinding:IsSetActive(set) then
-			local bindings = SpellBinding:GetBindingsForSet(set)
-			if next(bindings) then
-				tinsert(list, {
-					set = set,
-				})
-			end
-			for action in pairs(bindings) do
-				tinsert(list, {
-					action = action,
-					set = set,
-				})
-			end
+	for i, set in SpellBinding:IterateActiveSets() do
+		local bindings = SpellBinding:GetBindingsForSet(set)
+		if next(bindings) then
+			tinsert(list, {
+				set = set,
+			})
+		end
+		for action in pairs(bindings) do
+			tinsert(list, {
+				action = action,
+				set = set,
+			})
 		end
 	end
 	sort(list, listSort)
 	scrollFrame:update()
-	hintNoBindings:SetShown(#sets > 0 and #list == 0)
-	hintNoSets:SetShown(#sets == 0)
+	hintNoBindings:SetShown(#list == 0)
 end
 
 Bindings.UPDATE_BINDINGS = Bindings.UpdateList

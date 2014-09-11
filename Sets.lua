@@ -2,10 +2,21 @@ local _, SpellBinding = ...
 
 local Sets = SpellBinding:NewModule("Binding sets", CreateFrame("Frame"))
 
+local info = Sets:CreateFontString(nil, nil, "GameFontHighlightSmall")
+info:SetHeight(30)
+-- info:SetPoint("BOTTOMLEFT", Sets.Inset, 9, 6)
+-- info:SetPoint("BOTTOMRIGHT", Sets.Inset, -9, 6)
+info:SetPoint("TOPLEFT", 8, -26)
+info:SetPoint("TOPRIGHT", -8, -26)
+info:SetJustifyH("LEFT")
+info:SetJustifyV("TOP")
+info:SetText("The priority of binding sets determines how to solve binding conflicts by using the higher priority set's binding. The higher the set is in this list, the higher its priority.")
+
 local function deactivateSet(self, set)
-	for i, v in ipairs(SpellBinding.db.global.sets) do
+	local sets = SpellBinding:GetActiveSets()
+	for i, v in ipairs(sets) do
 		if v == set then
-			tremove(SpellBinding.db.global.sets, i)
+			tremove(sets, i)
 			Sets:UpdateSetMenus()
 			return
 		end
@@ -13,16 +24,17 @@ local function deactivateSet(self, set)
 end
 
 local function onClick(self, set, currentSet)
+	local sets = SpellBinding:GetActiveSets()
 	-- if this slot already had a set, replace it with the selected set
 	if currentSet then
-		for i, v in ipairs(SpellBinding.db.global.sets) do
+		for i, v in SpellBinding:IterateActiveSets() do
 			if v == currentSet then
-				SpellBinding.db.global.sets[i] = set
+				sets[i] = set
 				break
 			end
 		end
 	else
-		tinsert(SpellBinding.db.global.sets, 1, set)
+		tinsert(sets, set)
 	end
 	Sets:UpdateSetMenus()
 end
@@ -36,6 +48,10 @@ local function initializeSetMenu(self)
 		info.arg1 = set
 		info.notCheckable = true
 		info.colorCode = RED_FONT_COLOR_CODE
+		info.disabled = (SpellBinding:GetNumActiveSets() == 1)
+		info.tooltipTitle = info.disabled and "At least one set must be active at all times."
+		info.tooltipOnButton = true
+		info.tooltipWhileDisabled = true
 		self:AddButton(info)
 	end
 	
@@ -53,10 +69,10 @@ local function initializeSetMenu(self)
 end
 
 local function move(self)
-	local db = SpellBinding.db.global.sets
+	local sets = SpellBinding:GetActiveSets()
 	local index = self:GetParent().index
 	local swapIndex = index + self.shiftMod
-	db[index], db[swapIndex] = db[swapIndex], db[index]
+	sets[index], sets[swapIndex] = sets[swapIndex], sets[index]
 	Sets:UpdateSetMenus()
 end
 
@@ -80,7 +96,7 @@ local setMenus = setmetatable({}, {
 		menu.moveUp:SetDisabledTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollUp-Disabled]])
 		menu.moveUp:SetHighlightTexture([[Interface\Buttons\UI-Common-MouseHilight]])
 		menu.moveUp:SetScript("OnClick", move)
-		menu.moveUp.shiftMod = 1
+		menu.moveUp.shiftMod = -1
 		
 		menu.moveDown = CreateFrame("Button", nil, menu)
 		menu.moveDown:SetSize(24, 24)
@@ -90,7 +106,7 @@ local setMenus = setmetatable({}, {
 		menu.moveDown:SetDisabledTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollDown-Disabled]])
 		menu.moveDown:SetHighlightTexture([[Interface\Buttons\UI-Common-MouseHilight]])
 		menu.moveDown:SetScript("OnClick", move)
-		menu.moveDown.shiftMod = -1
+		menu.moveDown.shiftMod = 1
 		
 		table[index] = menu
 		return menu
@@ -99,39 +115,42 @@ local setMenus = setmetatable({}, {
 
 function Sets:OnInitialize()
 	self:UpdateSetMenus()
+	self.SET_ACTIVATED = self.UpdateSetMenus
 end
 
 function Sets:UpdateSetMenus()
-	local db = SpellBinding.db.global.sets
-	for i = 1, #db do
+	local numActiveSets = SpellBinding:GetNumActiveSets()
+	for i, set in SpellBinding:IterateActiveSets() do
 		local menu = setMenus[i]
-		local index = #db - i + 1
-		menu:SetText(SpellBinding:GetSetName(db[index]))
+		menu:SetText(SpellBinding:GetSetName(set))
 		menu.moveUp:Show()
-		menu.moveUp:SetEnabled(index ~= #db)
+		menu.moveUp:SetEnabled(i > 1)
 		menu.moveDown:Show()
-		menu.moveDown:SetEnabled(index ~= 1)
-		menu.index = index
+		menu.moveDown:SetEnabled(i < numActiveSets)
+		menu.index = i
 	end
-	local menu = setMenus[#db + 1]
+	local menu = setMenus[numActiveSets + 1]
 	menu:SetText(GREEN_FONT_COLOR_CODE.."Activate a set...|r")
 	menu:Show()
 	menu.moveUp:Hide()
 	menu.moveDown:Hide()
 	menu.index = nil
-	for i = #db + 2, #setMenus do
+	for i = numActiveSets + 2, #setMenus do
 		setMenus[i]:Hide()
 	end
 	SpellBinding:UpdateSortOrder()
 	SpellBinding:ApplyBindings()
 end
 
-local info = Sets:CreateFontString(nil, nil, "GameFontHighlightSmall")
-info:SetHeight(30)
--- info:SetPoint("BOTTOMLEFT", Sets.Inset, 9, 6)
--- info:SetPoint("BOTTOMRIGHT", Sets.Inset, -9, 6)
-info:SetPoint("TOPLEFT", 8, -26)
-info:SetPoint("TOPRIGHT", -8, -26)
-info:SetJustifyH("LEFT")
-info:SetJustifyV("TOP")
-info:SetText("The priority of binding sets determines how to solve binding conflicts by using the higher priority set's binding. The higher the set is in this list, the higher its priority.")
+local reverse = SpellBinding:CreateButton(Sets)
+reverse:SetWidth(80)
+reverse:SetPoint("BOTTOMLEFT", 12, 14)
+reverse:SetText("Reverse")
+reverse:SetScript("OnClick", function()
+	local sets = {}
+	for i, v in ipairs(SpellBinding:GetActiveSets()) do
+		tinsert(sets, 1, v)
+	end
+	SpellBinding.db.global.sets = sets
+	Sets:UpdateSetMenus()
+end)

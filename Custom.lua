@@ -70,11 +70,9 @@ selectSetMenu.initialize = function(self)
 	info.notCheckable = true
 	self:AddButton(info)
 	
-	local currentAction, activeSet = SpellBinding:GetConflictState(self.key)
+	local activeAction, activeSet = SpellBinding:GetActiveActionForKey(self.key)
 	
-	local sets = SpellBinding.db.global.sets
-	for i = #sets, 1, -1 do
-		local set = sets[i]
+	for i, set in SpellBinding:IterateActiveSets() do
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = SpellBinding:GetSetName(set)
 		info.value = set
@@ -82,19 +80,14 @@ selectSetMenu.initialize = function(self)
 		info.arg1 = self.key
 		info.arg2 = self.action
 		info.notCheckable = true
-		if currentAction then
-			local newSetName = SpellBinding:GetSetName(set)
-			info.colorCode = color
-			info.tooltipTitle = format("Bind %s to |cffffd200%s|r (%s)", SpellBinding:GetActionLabel(self.action), GetBindingText(self.key, "KEY_"), newSetName)
-			if currentAction ~= SpellBinding:GetActionString(self.action) then
-				local text1, text2 = SpellBinding:GetConflictText(currentAction, self.key, activeSet, set)
-				if set ~= activeSet then
-					info.tooltipText = text1
-				end
-				if text2 then
-					info.tooltipText = (info.tooltipText or "").."\n"..text2
-				end
-			end
+		if activeAction then
+			info.colorCode = (set == activeSet) and LIGHTYELLOW_FONT_COLOR_CODE
+			info.tooltipTitle = format("Bind %s to |cffffd200%s|r (%s)", 
+										SpellBinding:GetActionLabel(self.action),
+										GetBindingText(self.key, "KEY_"),
+										SpellBinding:GetSetName(set))
+			local text1, text2 = SpellBinding:GetConflictText(self.key, self.action, set, activeAction, activeSet)
+			info.tooltipText = (text1 or "").."\n"..(text2 or "")
 			info.tooltipLines = true
 		end
 		self:AddButton(info)
@@ -113,7 +106,7 @@ local function dropAction(self, button)
 		elseif type == "macro" then
 			action = "MACRO "..GetMacroInfo(data)
 		end
-		selectSetMenu.key = Custom.db.global.keys[self:GetID()]
+		selectSetMenu.key = self.key
 		selectSetMenu.action = action
 		HideDropDownMenu(1)
 		selectSetMenu:Toggle(nil, self)
@@ -158,56 +151,54 @@ local function onClick(self, button)
 		dropAction(self, button)
 		return
 	end
-	-- if button == "LeftButton" then
-		-- currentIndex = self:GetID()
-		-- overlay:Show()
-	-- else
 	if self:GetID() ~= UIDROPDOWNMENU_MENU_VALUE then
 		menu:Close()
 	end
-		menu:Toggle(self:GetID(), self)
-	-- end
+	menu:Toggle(self:GetID(), self)
 end
 
 local function onEnter(self)
-	if not self.binding then return end
+	if not self.action then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	SpellBinding:ListBindingKeys(self.binding)
+	GameTooltip:AddLine(GetBindingText(self.key, "KEY_"), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	GameTooltip:AddDoubleLine(SpellBinding:GetActionLabel(self.action), SpellBinding:GetSetName(self.set))
+	GameTooltip:Show()
 end
 
-local buttons = {}
-
-local function createButton()
-	local button = CreateFrame("CheckButton", nil, Custom)
-	button:SetSize(36, 36)
-	button:SetScript("OnClick", onClick)
-	button:SetScript("OnEnter", onEnter)
-	button:SetScript("OnLeave", GameTooltip_Hide)
-	button:SetScript("OnReceiveDrag", dropAction)
-	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-	button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
-	
-	local bg = button:CreateTexture(nil, "BACKGROUND")
-	bg:SetSize(45, 45)
-	bg:SetPoint("CENTER", 0, -1)
-	bg:SetTexture([[Interface\Buttons\UI-EmptySlot-Disabled]])
-	bg:SetTexCoord(0.140625, 0.84375, 0.140625, 0.84375)
-	
-	button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
-	button.name:SetSize(36, 10)
-	button.name:SetPoint("BOTTOM", 0, 2)
-	
-	button.icon = button:CreateTexture()
-	button.icon:SetSize(36, 36)
-	button.icon:SetPoint("CENTER", 0, -1)
-	
-	button.hotKey = button:CreateFontString(nil, nil, "NumberFontNormalSmallGray")
-	button.hotKey:SetSize(36, 10)
-	button.hotKey:SetPoint("TOPLEFT", 1, -3)
-	button.hotKey:SetJustifyH("RIGHT")
-	
-	return button
-end
+local buttons = setmetatable({}, {
+	__index = function(table, index)
+		local button = CreateFrame("CheckButton", nil, Custom)
+		button:SetSize(36, 36)
+		button:SetScript("OnClick", onClick)
+		button:SetScript("OnEnter", onEnter)
+		button:SetScript("OnLeave", GameTooltip_Hide)
+		button:SetScript("OnReceiveDrag", dropAction)
+		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+		button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
+		
+		local bg = button:CreateTexture(nil, "BACKGROUND")
+		bg:SetSize(45, 45)
+		bg:SetPoint("CENTER", 0, -1)
+		bg:SetTexture([[Interface\Buttons\UI-EmptySlot-Disabled]])
+		bg:SetTexCoord(0.140625, 0.84375, 0.140625, 0.84375)
+		
+		button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
+		button.name:SetSize(36, 10)
+		button.name:SetPoint("BOTTOM", 0, 2)
+		
+		button.icon = button:CreateTexture()
+		button.icon:SetSize(36, 36)
+		button.icon:SetPoint("CENTER", 0, -1)
+		
+		button.hotKey = button:CreateFontString(nil, nil, "NumberFontNormalSmallGray")
+		button.hotKey:SetSize(36, 10)
+		button.hotKey:SetPoint("TOPLEFT", 1, -3)
+		button.hotKey:SetJustifyH("RIGHT")
+		
+		table[index] = button
+		return button
+	end
+})
 
 Custom:SetScript("OnHide", function(self)
 	selectSetMenu:Close()
@@ -249,7 +240,7 @@ function Custom:UpdateGrid()
 	local gridColumns = self.db.global.gridColumns
 	local numButtons = gridRows * gridColumns
 	for i = 1, numButtons do
-		local button = buttons[i] or createButton()
+		local button = buttons[i]
 		button:SetID(i)
 		button:Show()
 		if i == 1 then
@@ -274,10 +265,12 @@ function Custom:UpdateCustomBindings()
 		local button = buttons[i]
 		local key = self.db.global.keys[i]
 		button.hotKey:SetText(GetBindingText(key, "KEY_"))
-		local binding = key and GetBindingByKey(key)
-		local name, texture = SpellBinding:GetActionInfo(binding)
+		local action, set = SpellBinding:GetActiveActionForKey(key)
+		local name, texture = SpellBinding:GetActionInfo(action)
 		button.name:SetText(name)
 		button.icon:SetTexture(texture)
-		button.binding = SpellBinding:GetActionStringReverse(binding) or binding
+		button.key = key
+		button.action = SpellBinding:GetActionStringReverse(action) or action
+		button.set = set
 	end
 end
