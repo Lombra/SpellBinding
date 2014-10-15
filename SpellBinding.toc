@@ -1,4 +1,4 @@
-## Interface: 50400
+## Interface: 60000
 ## Title: SpellBinding
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
@@ -8,8 +8,8 @@
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
-Libs\AceDB-3.0\AceDB-3.0.lua
 Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\AceDB-3.0\AceDB-3.0.lua
 Libs\LibDualSpec-1.0\LibDualSpec-1.0.lua
 Libs\Libra\Libra.xml
 
