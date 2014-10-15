@@ -269,8 +269,6 @@ local options = {
 }
 
 local menu = SpellBinding:CreateDropdown("Menu")
-menu.xOffset = 0
-menu.yOffset = 0
 menu.initialize = function(self)
 	local button = UIDROPDOWNMENU_MENU_VALUE
 	local key1, key2 = SpellBinding:GetBindings(button.binding, button.set)
@@ -354,7 +352,7 @@ do
 			button.label:SetFontObject(isInactive and GameFontDisable or GameFontHighlight)
 			button.label:SetText(SpellBinding:GetActionLabel(object.action, isInactive))
 			button.info:SetFontObject((isInactive or not key) and GameFontDisableSmall or GameFontNormalSmall)
-			button.info:SetText(GetBindingText(key or NOT_BOUND, "KEY_"))
+			button.info:SetText(GetBindingText(key or NOT_BOUND))
 			button.icon:SetTexture(texture)
 			button.icon:SetDesaturated(isInactive)
 		end

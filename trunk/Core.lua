@@ -70,7 +70,7 @@ local function setBindingActionText(self, action)
 end
 
 local function setBindingKeyText(self, key)
-	self.key:SetFormattedText("Current key: %s", GetBindingText(key or NOT_BOUND, "KEY_"))
+	self.key:SetFormattedText("Current key: %s", GetBindingText(key or NOT_BOUND))
 end
 
 local buttonMappings = {
@@ -299,7 +299,7 @@ function SpellBinding:RefreshConfig()
 end
 
 function SpellBinding:Fire(callback)
-	for k, module in self:IterateModules() do
+	for i, module in self:IterateModules() do
 		if module[callback] then
 			module[callback](module)
 		end
@@ -401,7 +401,7 @@ local function addBinding(action, key, set)
 	if GetBindingByKey(key) ~= SpellBinding:GetActionString(action) then
 		color = GRAY_FONT_COLOR
 	end
-	GameTooltip:AddDoubleLine(GetBindingText(key, "KEY_"), SpellBinding:GetSetName(set), color.r, color.g, color.b, color.r, color.g, color.b)
+	GameTooltip:AddDoubleLine(GetBindingText(key), SpellBinding:GetSetName(set), color.r, color.g, color.b, color.r, color.g, color.b)
 	GameTooltip.hasBinding = true
 end
 
@@ -521,7 +521,7 @@ local getName = {
 	SPELL = GetSpellInfo,
 	ITEM = GetItemInfo,
 	COMMAND = function(data)
-		return GetBindingText(data, "BINDING_NAME_")
+		return _G["BINDING_NAME_"..data] or data
 	end,
 }
 

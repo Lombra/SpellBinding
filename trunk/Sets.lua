@@ -115,7 +115,7 @@ local setMenus = setmetatable({}, {
 
 function Sets:OnInitialize()
 	self:UpdateSetMenus()
-	self.SET_ACTIVATED = self.UpdateSetMenus
+	-- self.SET_ACTIVATED = self.UpdateSetMenus
 end
 
 function Sets:UpdateSetMenus()

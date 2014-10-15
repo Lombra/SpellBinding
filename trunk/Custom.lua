@@ -61,8 +61,6 @@ local function onClick(self, key, action)
 end
 
 local selectSetMenu = SpellBinding:CreateDropdown("Menu")
-selectSetMenu.xOffset = 0
-selectSetMenu.yOffset = 0
 selectSetMenu.initialize = function(self)
 	local info = UIDropDownMenu_CreateInfo()
 	info.text = "Select binding set"
@@ -84,7 +82,7 @@ selectSetMenu.initialize = function(self)
 			info.colorCode = (set == activeSet) and LIGHTYELLOW_FONT_COLOR_CODE
 			info.tooltipTitle = format("Bind %s to |cffffd200%s|r (%s)", 
 										SpellBinding:GetActionLabel(self.action),
-										GetBindingText(self.key, "KEY_"),
+										GetBindingText(self.key),
 										SpellBinding:GetSetName(set))
 			local text1, text2 = SpellBinding:GetConflictText(self.key, self.action, set, activeAction, activeSet)
 			info.tooltipText = (text1 or "").."\n"..(text2 or "")
@@ -132,8 +130,6 @@ local options = {
 }
 
 local menu = SpellBinding:CreateDropdown("Menu")
-menu.xOffset = 0
-menu.yOffset = 0
 menu.initialize = function(self)
 	local index = UIDROPDOWNMENU_MENU_VALUE
 	for i, option in ipairs(options) do
@@ -160,7 +156,7 @@ end
 local function onEnter(self)
 	if not self.action then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	GameTooltip:AddLine(GetBindingText(self.key, "KEY_"), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	GameTooltip:AddLine(GetBindingText(self.key), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
 	GameTooltip:AddDoubleLine(SpellBinding:GetActionLabel(self.action), SpellBinding:GetSetName(self.set))
 	GameTooltip:Show()
 end
@@ -264,7 +260,7 @@ function Custom:UpdateCustomBindings()
 	for i = 1, self.db.global.gridRows * self.db.global.gridColumns do
 		local button = buttons[i]
 		local key = self.db.global.keys[i]
-		button.hotKey:SetText(GetBindingText(key, "KEY_"))
+		button.hotKey:SetText(GetBindingText(key, true))
 		local action, set = SpellBinding:GetActiveActionForKey(key)
 		local name, texture = SpellBinding:GetActionInfo(action)
 		button.name:SetText(name)
