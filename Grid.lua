@@ -1,18 +1,18 @@
 local _, SpellBinding = ...
 
-local Custom = SpellBinding:NewModule("Custom", CreateFrame("Frame"))
+local Grid = SpellBinding:NewModule("Grid", CreateFrame("Frame"))
 
 local currentKey, currentIndex
 
 local function onValueChanged(self, value, isUserInput)
 	self.currentValue:SetText(value)
 	if not isUserInput then return end
-	Custom.db.global[self.setting] = value
-	Custom:UpdateGrid()
+	Grid.db.global[self.setting] = value
+	Grid:UpdateGrid()
 end
 
 local function createSlider(maxValue)
-	local slider = SpellBinding:CreateSlider(Custom)
+	local slider = SpellBinding:CreateSlider(Grid)
 	slider:SetWidth(96)
 	slider.min:ClearAllPoints()
 	slider.min:SetPoint("LEFT", -12, 0)
@@ -39,10 +39,10 @@ columnsSlider:SetPoint("TOPRIGHT", -40, -40)
 columnsSlider.setting = "gridColumns"
 columnsSlider.label:SetText("Columns: ")
 
-local overlay = SpellBinding:CreateBindingOverlay(Custom)
+local overlay = SpellBinding:CreateBindingOverlay(Grid)
 overlay.OnAccept = function(self)
-	Custom.db.global.keys[currentIndex] = currentKey
-	Custom:UpdateCustomBindings()
+	Grid.db.global.keys[currentIndex] = currentKey
+	Grid:UpdateGridBindings()
 end
 overlay.OnBinding = function(self, keyPressed)
 	self:SetBindingKeyText(keyPressed)
@@ -50,7 +50,7 @@ overlay.OnBinding = function(self, keyPressed)
 end
 overlay:SetScript("OnShow", function(self)
 	self:SetBindingActionText("Button "..currentIndex)
-	self:SetBindingKeyText(Custom.db.global.keys[currentIndex])
+	self:SetBindingKeyText(Grid.db.global.keys[currentIndex])
 end)
 overlay:SetScript("OnHide", function(self)
 	currentKey = nil
@@ -123,8 +123,8 @@ local options = {
 	{
 		text = "Remove key",
 		func = function(self, index)
-			Custom.db.global.keys[index] = nil
-			Custom:UpdateCustomBindings()
+			Grid.db.global.keys[index] = nil
+			Grid:UpdateGridBindings()
 		end,
 	},
 }
@@ -163,7 +163,7 @@ end
 
 local buttons = setmetatable({}, {
 	__index = function(table, index)
-		local button = CreateFrame("CheckButton", nil, Custom)
+		local button = CreateFrame("CheckButton", nil, Grid)
 		button:SetSize(36, 36)
 		button:SetScript("OnClick", onClick)
 		button:SetScript("OnEnter", onEnter)
@@ -196,7 +196,7 @@ local buttons = setmetatable({}, {
 	end
 })
 
-Custom:SetScript("OnHide", function(self)
+Grid:SetScript("OnHide", function(self)
 	selectSetMenu:Close()
 	menu:Close()
 end)
@@ -210,10 +210,14 @@ local defaults = {
 	}
 }
 
-function Custom:OnInitialize()
-	self.UPDATE_BINDINGS = self.UpdateCustomBindings
+function Grid:OnInitialize()
+	self.UPDATE_BINDINGS = self.UpdateGridBindings
 	
-	self.db = SpellBinding.db:RegisterNamespace("Custom", defaults)
+	if SpellBinding.db.sv.namespaces and SpellBinding.db.sv.namespaces.Custom then
+		SpellBinding.db.sv.namespaces.Grid = SpellBinding.db.sv.namespaces.Custom
+		SpellBinding.db.sv.namespaces.Custom = nil
+	end
+	self.db = SpellBinding.db:RegisterNamespace("Grid", defaults)
 	
 	rowsSlider:SetValue(self.db.global.gridRows)
 	columnsSlider:SetValue(self.db.global.gridColumns)
@@ -223,7 +227,7 @@ function Custom:OnInitialize()
 	self:UpdateGrid()
 end
 
-function Custom:PLAYER_REGEN_DISABLED()
+function Grid:PLAYER_REGEN_DISABLED()
 	selectSetMenu:Close()
 	menu:Close()
 end
@@ -231,7 +235,7 @@ end
 local XPADDING = 10
 local YPADDING = 8
 
-function Custom:UpdateGrid()
+function Grid:UpdateGrid()
 	local gridRows = self.db.global.gridRows
 	local gridColumns = self.db.global.gridColumns
 	local numButtons = gridRows * gridColumns
@@ -243,7 +247,7 @@ function Custom:UpdateGrid()
 			-- position the grid in the center of the frame
 			local gridWidth = gridColumns * (button:GetWidth() + XPADDING) - XPADDING
 			local gridHeight = gridRows * (button:GetHeight() + YPADDING) - YPADDING
-			button:SetPoint("TOPLEFT", Custom.Inset, "CENTER", -gridWidth / 2, gridHeight / 2)
+			button:SetPoint("TOPLEFT", Grid.Inset, "CENTER", -gridWidth / 2, gridHeight / 2)
 		elseif (i % gridColumns == 1) or (gridColumns == 1) then
 			button:SetPoint("TOPLEFT", buttons[i - gridColumns], "BOTTOMLEFT", 0, -YPADDING)
 		else
@@ -256,7 +260,7 @@ function Custom:UpdateGrid()
 	end
 end
 
-function Custom:UpdateCustomBindings()
+function Grid:UpdateGridBindings()
 	for i = 1, self.db.global.gridRows * self.db.global.gridColumns do
 		local button = buttons[i]
 		local key = self.db.global.keys[i]
