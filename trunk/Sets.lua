@@ -4,8 +4,6 @@ local Sets = SpellBinding:NewModule("Binding sets", CreateFrame("Frame"))
 
 local info = Sets:CreateFontString(nil, nil, "GameFontHighlightSmall")
 info:SetHeight(30)
--- info:SetPoint("BOTTOMLEFT", Sets.Inset, 9, 6)
--- info:SetPoint("BOTTOMRIGHT", Sets.Inset, -9, 6)
 info:SetPoint("TOPLEFT", 8, -26)
 info:SetPoint("TOPRIGHT", -8, -26)
 info:SetJustifyH("LEFT")
@@ -115,7 +113,6 @@ local setMenus = setmetatable({}, {
 
 function Sets:OnInitialize()
 	self:UpdateSetMenus()
-	-- self.SET_ACTIVATED = self.UpdateSetMenus
 end
 
 function Sets:UpdateSetMenus()
@@ -141,16 +138,3 @@ function Sets:UpdateSetMenus()
 	SpellBinding:UpdateSortOrder()
 	SpellBinding:ApplyBindings()
 end
-
-local reverse = SpellBinding:CreateButton(Sets)
-reverse:SetWidth(80)
-reverse:SetPoint("BOTTOMLEFT", 12, 14)
-reverse:SetText("Reverse")
-reverse:SetScript("OnClick", function()
-	local sets = {}
-	for i, v in ipairs(SpellBinding:GetActiveSets()) do
-		tinsert(sets, 1, v)
-	end
-	SpellBinding.db.global.sets = sets
-	Sets:UpdateSetMenus()
-end)

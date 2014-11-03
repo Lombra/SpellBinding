@@ -133,10 +133,6 @@ end
 
 local overlay = SpellBinding:CreateBindingOverlay(Bindings)
 overlay.OnAccept = function(self)
-	-- if not SpellBinding:IsSetActive(newSet) then
-		-- tinsert(SpellBinding:GetActiveSets(), 1, newSet)
-		-- SpellBinding:Fire("SET_ACTIVATED")
-	-- end
 	if newSet ~= currentSet then
 		SpellBinding:ClearBindings(currentAction, currentSet)
 		SpellBinding.db[currentSet].bindings[currentAction] = nil
@@ -203,24 +199,7 @@ setMenu.initialize = function(self)
 		info.checked = (v == newSet)
 		self:AddButton(info)
 	end
-	-- local sets =  SpellBinding:GetAvailableSets()
-	-- for i = #sets, 1, -1 do
-		-- local v = sets[i]
-		-- if not SpellBinding:IsSetActive(v) then
-			-- local info = UIDropDownMenu_CreateInfo()
-			-- info.text = SpellBinding:GetSetName(v)
-			-- info.func = onClick
-			-- info.arg1 = v
-			-- info.checked = (v == newSet)
-			-- info.colorCode = LIGHTYELLOW_FONT_COLOR_CODE
-			-- info.tooltipTitle = "Create binding set"
-			-- info.tooltipOnButton = true
-			-- self:AddButton(info)
-		-- end
-	-- end
 end
-
-local scrollFrame
 
 local options = {
 	{
@@ -285,6 +264,8 @@ menu.initialize = function(self)
 		end
 	end
 end
+
+local scrollFrame
 
 do
 	local function onClick(self, button)
@@ -425,6 +406,8 @@ end)
 
 function Bindings:OnInitialize()
 	self:RegisterEvent("PLAYER_REGEN_DISABLED")
+	self:RegisterEvent("SPELLS_CHANGED", "UpdateScrollFrame")
+	self:RegisterEvent("UPDATE_MACROS", "UpdateScrollFrame")
 end
 
 function Bindings:PLAYER_REGEN_DISABLED()
@@ -447,8 +430,10 @@ local function listSort(a, b)
 		return customSort[a.set] < customSort[b.set]
 	else
 		if not a.action and b.action then return true end
-		if not (SpellBinding:GetActionInfo(a.action) and SpellBinding:GetActionInfo(b.action)) then return end
-		return SpellBinding:GetActionInfo(a.action) < SpellBinding:GetActionInfo(b.action)
+		local actionA = SpellBinding:GetActionInfo(a.action)
+		local actionB = SpellBinding:GetActionInfo(b.action)
+		if not (actionA and actionB) then return end
+		return actionA < actionB
 	end
 end
 
@@ -469,8 +454,12 @@ function Bindings:UpdateList()
 		end
 	end
 	sort(list, listSort)
-	scrollFrame:update()
+	self:UpdateScrollFrame()
 	hintNoBindings:SetShown(#list == 0)
+end
+
+function Bindings:UpdateScrollFrame()
+	scrollFrame:update()
 end
 
 Bindings.UPDATE_BINDINGS = Bindings.UpdateList
