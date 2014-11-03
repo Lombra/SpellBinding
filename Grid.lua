@@ -223,6 +223,8 @@ function Grid:OnInitialize()
 	columnsSlider:SetValue(self.db.global.gridColumns)
 	
 	self:RegisterEvent("PLAYER_REGEN_DISABLED")
+	self:RegisterEvent("SPELLS_CHANGED", "UpdateGridBindings")
+	self:RegisterEvent("UPDATE_MACROS", "UpdateGridBindings")
 	
 	self:UpdateGrid()
 end
