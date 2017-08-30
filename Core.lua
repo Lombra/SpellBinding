@@ -12,14 +12,14 @@ frame:SetTitleText("SpellBinding")
 frame:HidePortrait(frame)
 frame:HideButtonBar(frame)
 frame:SetScript("OnShow", function(self)
-	PlaySound("igCharacterInfoOpen")
+	PlaySound(SOUNDKIT.IG_CHARACTER_INFO_OPEN)
 	if not self:GetSelectedTab() then
 		self:SelectTab(1)
 	end
 end)
 frame:SetScript("OnHide", function(self)
 	SpellBinding:HideOverlays()
-	PlaySound("igCharacterInfoClose")
+	PlaySound(SOUNDKIT.IG_CHARACTER_INFO_CLOSE)
 end)
 
 SlashCmdList["SPELLBINDING"] = function(msg)
