@@ -1,8 +1,9 @@
-## Interface: 70300
+## Interface: 80000
 ## Title: SpellBinding
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
 ## Author: Lombra
+
 ## SavedVariables: SpellBindingDB
 ## SavedVariablesPerCharacter: SpellBindingPerCharDB
 
