@@ -369,6 +369,7 @@ do
 		button.label = button:CreateFontString()
 		button.label:SetPoint("RIGHT", button.info, "LEFT", -4, 0)
 		button.label:SetJustifyH("LEFT")
+		button.label:SetWordWrap(false)
 		
 		local left = button:CreateTexture(nil, "BACKGROUND")
 		left:SetPoint("LEFT")
