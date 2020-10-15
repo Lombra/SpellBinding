@@ -53,7 +53,7 @@ do	-- click binding
 		"MiddleButton",
 	}
 	
-	local mouseFocusOverlay = CreateFrame("Frame", nil, UIParent)
+	local mouseFocusOverlay = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 	mouseFocusOverlay:SetFrameStrata("FULLSCREEN_DIALOG")
 	mouseFocusOverlay:SetBackdrop({
 		bgFile = [[Interface\Buttons\WHITE8X8]],
