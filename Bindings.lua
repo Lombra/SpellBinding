@@ -313,7 +313,7 @@ do
 		local isHeader = not object.action
 		if isHeader then
 			button:EnableDrawLayer("BACKGROUND")
-			button:SetHighlightTexture(nil)
+			button:ClearHighlightTexture()
 			button.label:SetFontObject(GameFontNormal)
 			button.label:SetPoint("LEFT", 11, 0)
 			button.info:SetText("")
