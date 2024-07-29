@@ -36,23 +36,23 @@ end
 
 do	-- click binding
 	local currentFocus
-	
+
 	local clickBind = SpellBinding:CreateOverlay(Bindings)
-	
+
 	local info = clickBind:CreateFontString(nil, nil, "GameFontNormal")
 	info:SetPoint("CENTER", 0, 48)
 	info:SetText("Click a button frame")
-	
+
 	local hintClose = clickBind:CreateFontString(nil, nil, "GameFontDisable")
 	hintClose:SetPoint("CENTER")
 	hintClose:SetText("Press Escape to cancel")
-	
+
 	local mouseButtons = {
 		"LeftButton",
 		"RightButton",
 		"MiddleButton",
 	}
-	
+
 	local mouseFocusOverlay = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 	mouseFocusOverlay:SetFrameStrata("FULLSCREEN_DIALOG")
 	mouseFocusOverlay:SetBackdrop({
@@ -62,18 +62,19 @@ do	-- click binding
 	})
 	mouseFocusOverlay:SetBackdropColor(1, 1, 1, 0.2)
 	mouseFocusOverlay:Hide()
-	
+
 	local function cancelFrameSelection()
 		clickBind:Hide()
 		mouseFocusOverlay:Hide()
 	end
-	
+
 	clickBind:SetScript("OnUpdate", function(self)
-		local focus = GetMouseFocus()
+		local foci = GetMouseFoci()
+		local focus = foci and foci[1]
 		local focusName = focus and focus:GetName()
 		local isButton = focus and focus:IsObjectType("Button")
 		local isValid = focusName and isButton
-		
+
 		if focus ~= currentFocus then
 			currentFocus = focus
 			mouseFocusOverlay:SetAllPoints(focus)
@@ -110,7 +111,7 @@ do	-- click binding
 			end
 		end
 	end)
-	
+
 	clickBind:SetScript("OnKeyDown", function(self, keyPressed)
 		if GetBindingFromClick(keyPressed) == "TOGGLEGAMEMENU" then
 			cancelFrameSelection()
@@ -251,7 +252,7 @@ local menu = SpellBinding:CreateDropdown("Menu")
 menu.initialize = function(self)
 	local button = UIDROPDOWNMENU_MENU_VALUE
 	local key1, key2 = SpellBinding:GetBindings(button.binding, button.set)
-	
+
 	for i, option in ipairs(options) do
 		if (not option.primary or key1) and (not option.secondary or key2) then
 			local info = UIDropDownMenu_CreateInfo()
@@ -285,7 +286,7 @@ do
 			menu:Toggle(self, self)
 		end
 	end
-	
+
 	local function onEnter(self)
 		if self.isHeader then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT", 25, 0)
@@ -295,7 +296,7 @@ do
 		-- GameTooltip:AddLine("Right click for options")
 		GameTooltip:Show()
 	end
-	
+
 	scrollFrame = SpellBinding:CreateScrollFrame("Hybrid", Bindings)
 	scrollFrame:SetPoint("TOPLEFT", Bindings.Inset, 4, -4)
 	scrollFrame:SetPoint("BOTTOMRIGHT", Bindings.Inset, -20, 4)
@@ -318,13 +319,13 @@ do
 			button.label:SetPoint("LEFT", 11, 0)
 			button.info:SetText("")
 			button.icon:SetTexture("")
-			
+
 			button.label:SetText(SpellBinding:GetSetName(object.set))
 		else
 			button:DisableDrawLayer("BACKGROUND")
 			button:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]])
 			button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
-			
+
 			local key = SpellBinding:GetBindingKey(object.action)
 			local key1, key2 = SpellBinding:GetBindings(object.action, object.set)
 			local key = key1 or key2
@@ -340,8 +341,8 @@ do
 		button.binding = object.action
 		button.set = object.set
 		button.isHeader = isHeader
-		
-		if GetMouseFocus() == button then
+
+		if button:IsMouseMotionFocus() then
 			if isHeader then
 				GameTooltip:Hide()
 			else
@@ -362,38 +363,38 @@ do
 		button.icon = button:CreateTexture()
 		button.icon:SetPoint("LEFT", 3, 0)
 		button.icon:SetSize(16, 16)
-		
+
 		button.info = button:CreateFontString(nil, nil, "GameFontHighlightSmallRight")
 		button.info:SetPoint("RIGHT", -3, 0)
-		
+
 		button.label = button:CreateFontString()
 		button.label:SetPoint("RIGHT", button.info, "LEFT", -4, 0)
 		button.label:SetJustifyH("LEFT")
 		button.label:SetWordWrap(false)
-		
+
 		local left = button:CreateTexture(nil, "BACKGROUND")
 		left:SetPoint("LEFT")
 		left:SetSize(76, 16)
 		left:SetTexture([[Interface\Buttons\CollapsibleHeader]])
 		left:SetTexCoord(0.17578125, 0.47265625, 0.29687500, 0.54687500)
-		
+
 		local right = button:CreateTexture(nil, "BACKGROUND")
 		right:SetPoint("RIGHT")
 		right:SetSize(76, 16)
 		right:SetTexture([[Interface\Buttons\CollapsibleHeader]])
 		right:SetTexCoord(0.17578125, 0.47265625, 0.01562500, 0.26562500)
-		
+
 		local middle = button:CreateTexture(nil, "BACKGROUND")
 		middle:SetPoint("LEFT", left, "RIGHT", -20, 0)
 		middle:SetPoint("RIGHT", right, "LEFT", 20, 0)
 		middle:SetHeight(16)
 		middle:SetTexture([[Interface\Buttons\CollapsibleHeader]])
 		middle:SetTexCoord(0.48046875, 0.98046875, 0.01562500, 0.26562500)
-		
+
 		return button
 	end
 	scrollFrame:CreateButtons()
-	
+
 	local scrollBar = scrollFrame.scrollBar
 	scrollBar:ClearAllPoints()
 	scrollBar:SetPoint("TOPRIGHT", Bindings.Inset, 0, -18)

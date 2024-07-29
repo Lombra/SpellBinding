@@ -56,12 +56,12 @@ function SpellBinding:CreateOverlay(parent, isBindingOverlay)
 	overlay:SetBackdropColor(0, 0, 0, 0.8)
 	overlay:EnableMouse(true)
 	overlay:Hide()
-	
+
 	overlay.text = overlay:CreateFontString(nil, nil, "GameFontHighlightLarge")
 	overlay.text:SetPoint("CENTER", 0, 24)
-	
+
 	tinsert(overlays, overlay)
-	
+
 	return overlay
 end
 
@@ -96,9 +96,9 @@ local function onBinding(self, keyPressed)
 		self:Hide()
 		return
 	end
-	
+
 	keyPressed = buttonMappings[keyPressed] or keyPressed
-	
+
 	if keyPressed:match("^Button%d+$") then
 		keyPressed = keyPressed:upper()
 		-- 4 - 31
@@ -117,7 +117,7 @@ local function onBinding(self, keyPressed)
 	if IsAltKeyDown() then
 		keyPressed = "ALT-"..keyPressed
 	end
-	
+
 	self:OnBinding(keyPressed)
 end
 
@@ -143,31 +143,31 @@ function SpellBinding:CreateBindingOverlay(parent)
 	overlay:RegisterForClicks("AnyDown")
 	overlay.SetBindingActionText = setBindingActionText
 	overlay.SetBindingKeyText = setBindingKeyText
-	
+
 	for event, handler in pairs(handlers) do
 		overlay:SetScript(event, handler)
 	end
-	
+
 	local info = overlay:CreateFontString(nil, nil, "GameFontNormal")
 	info:SetPoint("CENTER", 0, 48)
 	info:SetText("Press a key to bind")
-	
+
 	overlay.actionName = overlay.text
-	
+
 	overlay.key = overlay:CreateFontString(nil, nil, "GameFontNormal")
 	overlay.key:SetPoint("CENTER")
-	
+
 	local closeHint = overlay:CreateFontString(nil, nil, "GameFontDisable")
 	closeHint:SetPoint("CENTER", 0, -24)
 	closeHint:SetText("Press Escape to cancel")
-	
+
 	local acceptButton = self:CreateButton(overlay)
 	acceptButton:SetWidth(80)
 	acceptButton:SetPoint("BOTTOMRIGHT", -16, 16)
 	acceptButton:SetText(ACCEPT)
 	acceptButton:SetScript("OnClick", onAccept)
 	acceptButton.overlay = overlay
-	
+
 	return overlay
 end
 
@@ -242,33 +242,33 @@ local percharDefaults = {
 
 function SpellBinding:OnInitialize()
 	self.db = LibStub("AceDB-3.0"):New("SpellBindingDB", defaults)
-	
+
 	if self.db.global.scopes then
 		self.db.global.sets = self.db.global.scopes
 		self.db.global.scopes = nil
 	end
-	
+
 	-- self.db.RegisterCallback(self, "OnProfileChanged", "RefreshConfig")
 	-- self.db.RegisterCallback(self, "OnProfileCopied", "RefreshConfig")
 	-- self.db.RegisterCallback(self, "OnProfileReset", "RefreshConfig")
-	
+
 	self.perchardb = LibStub("AceDB-3.0"):New("SpellBindingPerCharDB", percharDefaults)
-	
+
 	self.perchardb.RegisterCallback(self, "OnProfileChanged", "RefreshConfig")
 	self.perchardb.RegisterCallback(self, "OnProfileCopied", "RefreshConfig")
 	self.perchardb.RegisterCallback(self, "OnProfileReset", "RefreshConfig")
-	
+
 	LibStub("LibDualSpec-1.0"):EnhanceDatabase(self.perchardb, "SpellBinding")
-	
+
 	self.db.percharprofile = self.perchardb.profile
-	
+
 	self:RegisterEvent("PLAYER_LOGIN", "ApplyBindings")
 	self:RegisterEvent("UPDATE_BINDINGS")
 	self:RegisterEvent("PLAYER_REGEN_DISABLED")
 	self:RegisterEvent("PLAYER_REGEN_ENABLED")
-	
+
 	self:UpdateSortOrder()
-	
+
 	self:CreateAceDBControls(self.perchardb, self:NewModule("Profile", CreateFrame("Frame"))):SetPoint("CENTER", frame.Inset)
 end
 
@@ -278,7 +278,7 @@ function SpellBinding:OnModuleCreated(name, module)
 	module:Hide()
 	module.name = name
 	module.Inset = frame.Inset
-	
+
 	local tab = frame:CreateTab()
 	tab:SetText(name)
 	tab.frame = module
@@ -336,7 +336,7 @@ function SpellBinding:SetBinding(action, set, key, forcePrimary)
 	if not key and self.db[set].bindings[action] then
 		return
 	end
-	
+
 	if forcePrimary or type(self.db[set].bindings[action]) ~= "string" then
 		self.db[set].bindings[action] = key or true
 	else
@@ -349,12 +349,12 @@ function SpellBinding:SetPrimaryBinding(action, set, key)
 	local sets = self:GetActiveSets()
 	set = set or sets[#sets]
 	key = key or self.db[set].bindings[action]
-	
+
 	local currentAction, isSecondary = self:GetActionByKey(key, set)
 	if currentAction ~= action or isSecondary then
 		self:ClearBinding(currentAction, set, isSecondary)
 	end
-	
+
 	self.db[set].bindings[action] = key or true
 	-- self:SetBinding(action, set, key)
 	self:ApplyBindings()
@@ -364,12 +364,12 @@ function SpellBinding:SetSecondaryBinding(action, set, key)
 	local sets = self:GetActiveSets()
 	set = set or sets[#sets]
 	-- key = key or self.db[set].bindings[action]
-	
+
 	local currentAction, isSecondary = self:GetActionByKey(key, set)
 	if currentAction ~= action then
 		self:ClearBinding(currentAction, set, isSecondary)
 	end
-	
+
 	self.db[set].secondaryBindings[action] = key
 	-- self:SetBinding(action, set, key)
 	self:ApplyBindings()
@@ -488,7 +488,7 @@ end
 
 function SpellBinding:GetActionString(action)
 	if action:match("^SPELL %d+$") then
-		action = action:gsub("%d+", GetSpellInfo)
+		action = action:gsub("%d+", C_Spell.GetSpellName)
 	end
 	return action
 end
@@ -518,16 +518,16 @@ local typeLabels = {
 }
 
 local getName = {
-	SPELL = GetSpellInfo,
-	ITEM = GetItemInfo,
+	SPELL = C_Spell.GetSpellName,
+	ITEM = C_Item.GetItemInfo,
 	COMMAND = function(data)
 		return _G["BINDING_NAME_"..data] or data
 	end,
 }
 
 local getTexture = {
-	SPELL = GetSpellTexture,
-	ITEM = GetItemIcon,
+	SPELL = C_Spell.GetSpellTexture,
+	ITEM = C_Item.GetItemIconByID,
 	MACRO = function(data) return select(2, GetMacroInfo(data)) end,
 	COMMAND = function() return [[Interface\MacroFrame\MacroFrame-Icon]] end,
 	CLICK = function() return [[Interface\Icons\INV_Pet_LilSmokey2]] end,
