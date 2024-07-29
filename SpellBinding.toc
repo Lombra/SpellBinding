@@ -3,6 +3,7 @@
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
 ## Author: Lombra
+## X-Curse-Project-ID: 61571
 
 ## SavedVariables: SpellBindingDB
 ## SavedVariablesPerCharacter: SpellBindingPerCharDB

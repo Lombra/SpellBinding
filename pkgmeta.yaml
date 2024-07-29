@@ -1,7 +1,3 @@
-package-as: SpellBinding
-
-enable-nolib-creation: no
-
 externals:
   Libs/AceDB-3.0: https://repos.wowace.com/wow/ace3/trunk/AceDB-3.0
   Libs/CallbackHandler-1.0: https://repos.wowace.com/wow/ace3/trunk/CallbackHandler-1.0
@@ -9,3 +5,7 @@ externals:
   Libs/LibDualSpec-1.0: https://github.com/AdiAddons/LibDualSpec-1.0.git
   Libs/LibStub: https://repos.wowace.com/wow/libstub/trunk
   Libs/Libra: https://github.com/Lombra/Libra.git
+
+ignore:
+  - pkgmeta.yaml
+  - Makefile
