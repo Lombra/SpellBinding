@@ -31,6 +31,15 @@ SLASH_SPELLBINDING2 = "/sb"
 BINDING_HEADER_SPELLBINDING = "SpellBinding"
 BINDING_NAME_SPELLBINDING_TOGGLE = "Toggle SpellBinding frame"
 
+AddonCompartmentFrame:RegisterAddon({
+	text = "SpellBinding",
+	icon = [[Interface\Icons\INV_Pet_LilSmokey2]],
+	notCheckable = true,
+	func = function()
+		ToggleFrame(frame)
+	end,
+})
+
 local dataobj = LibStub("LibDataBroker-1.1"):NewDataObject("SpellBinding", {
 	type = "launcher",
 	label = "SpellBinding",

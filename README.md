@@ -4,7 +4,7 @@ SpellBinding is a powerful keybinding tool, fully utilising the power of AceDB d
 
 All bindings set using this addon are override bindings, which means they exist as an extra layer on top of the regular bindings and only when the addon is loaded. Regular bindings will never be undone as a result of binding with this addon.
 
-Open the addon using either of the following commands:
+Open the addon using the addon compartment menu or either of the following commands:
 
 - `/spellbinding`
 - `/sb`
