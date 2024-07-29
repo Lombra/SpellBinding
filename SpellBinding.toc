@@ -2,6 +2,7 @@
 ## Title: SpellBinding
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
+## IconTexture:
 ## Author: Lombra
 ## X-Curse-Project-ID: 61571
 
