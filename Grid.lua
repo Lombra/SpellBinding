@@ -148,6 +148,11 @@ local function onClick(self, button)
 		dropAction(self, button)
 		return
 	end
+	if not self.key then
+		currentIndex = self:GetID()
+		overlay:Show()
+		return
+	end
 	if self:GetID() ~= UIDROPDOWNMENU_MENU_VALUE then
 		menu:Close()
 	end
@@ -155,9 +160,13 @@ local function onClick(self, button)
 end
 
 local function onEnter(self)
-	if GetCursorInfo() and not self.key then
+	if not self.key then
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:AddLine("Key must be set on this cell before binding", RED_FONT_COLOR:GetRGB())
+		if not GetCursorInfo() then
+			GameTooltip:AddLine("Click to set a key for this cell")
+		else
+			GameTooltip:AddLine("Key must be set on this cell before binding", RED_FONT_COLOR:GetRGB())
+		end
 		GameTooltip:Show()
 		return
 	end
