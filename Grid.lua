@@ -67,9 +67,9 @@ selectSetMenu.initialize = function(self)
 	info.isTitle = true
 	info.notCheckable = true
 	self:AddButton(info)
-	
+
 	local activeAction, activeSet = SpellBinding:GetActiveActionForKey(self.key)
-	
+
 	for i, set in SpellBinding:IterateActiveSets() do
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = SpellBinding:GetSetName(set)
@@ -80,7 +80,7 @@ selectSetMenu.initialize = function(self)
 		info.notCheckable = true
 		if activeAction then
 			info.colorCode = (set == activeSet) and LIGHTYELLOW_FONT_COLOR_CODE
-			info.tooltipTitle = format("Bind %s to |cffffd200%s|r (%s)", 
+			info.tooltipTitle = format("Bind %s to |cffffd200%s|r (%s)",
 										SpellBinding:GetActionLabel(self.action),
 										GetBindingText(self.key),
 										SpellBinding:GetSetName(set))
@@ -93,6 +93,7 @@ selectSetMenu.initialize = function(self)
 end
 
 local function dropAction(self, button)
+	if not self.key then return end
 	-- button is always nil OnReceiveDrag, should never be nil OnClick
 	if button == "LeftButton" or not button then
 		local action
@@ -154,6 +155,12 @@ local function onClick(self, button)
 end
 
 local function onEnter(self)
+	if GetCursorInfo() and not self.key then
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:AddLine("Key must be set on this cell before binding", RED_FONT_COLOR:GetRGB())
+		GameTooltip:Show()
+		return
+	end
 	if not self.action then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 	GameTooltip:AddLine(GetBindingText(self.key), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
@@ -171,26 +178,26 @@ local buttons = setmetatable({}, {
 		button:SetScript("OnReceiveDrag", dropAction)
 		button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		button:SetHighlightTexture([[Interface\Buttons\ButtonHilight-Square]])
-		
+
 		local bg = button:CreateTexture(nil, "BACKGROUND")
 		bg:SetSize(45, 45)
 		bg:SetPoint("CENTER", 0, -1)
 		bg:SetTexture([[Interface\Buttons\UI-EmptySlot-Disabled]])
 		bg:SetTexCoord(0.140625, 0.84375, 0.140625, 0.84375)
-		
+
 		button.name = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
 		button.name:SetSize(36, 10)
 		button.name:SetPoint("BOTTOM", 0, 2)
-		
+
 		button.icon = button:CreateTexture()
 		button.icon:SetSize(36, 36)
 		button.icon:SetPoint("CENTER", 0, -1)
-		
+
 		button.hotKey = button:CreateFontString(nil, nil, "NumberFontNormalSmallGray")
 		button.hotKey:SetSize(36, 10)
 		button.hotKey:SetPoint("TOPLEFT", 1, -3)
 		button.hotKey:SetJustifyH("RIGHT")
-		
+
 		table[index] = button
 		return button
 	end
@@ -212,20 +219,20 @@ local defaults = {
 
 function Grid:OnInitialize()
 	self.UPDATE_BINDINGS = self.UpdateGridBindings
-	
+
 	if SpellBinding.db.sv.namespaces and SpellBinding.db.sv.namespaces.Custom then
 		SpellBinding.db.sv.namespaces.Grid = SpellBinding.db.sv.namespaces.Custom
 		SpellBinding.db.sv.namespaces.Custom = nil
 	end
 	self.db = SpellBinding.db:RegisterNamespace("Grid", defaults)
-	
+
 	rowsSlider:SetValue(self.db.global.gridRows)
 	columnsSlider:SetValue(self.db.global.gridColumns)
-	
+
 	self:RegisterEvent("PLAYER_REGEN_DISABLED")
 	self:RegisterEvent("SPELLS_CHANGED", "UpdateGridBindings")
 	self:RegisterEvent("UPDATE_MACROS", "UpdateGridBindings")
-	
+
 	self:UpdateGrid()
 end
 
