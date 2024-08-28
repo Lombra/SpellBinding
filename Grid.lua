@@ -96,14 +96,9 @@ local function dropAction(self, button)
 	if not self.key then return end
 	-- button is always nil OnReceiveDrag, should never be nil OnClick
 	if button == "LeftButton" or not button then
-		local action
-		local type, data, subType, subData = GetCursorInfo()
-		if type == "item" then
-			action = "ITEM item:"..data
-		elseif type == "spell" then
-			action = "SPELL "..subData
-		elseif type == "macro" then
-			action = "MACRO "..GetMacroInfo(data)
+		local action = SpellBinding:GetActionStringFromCursor()
+		if not action then
+			return
 		end
 		selectSetMenu.key = self.key
 		selectSetMenu.action = action
@@ -161,18 +156,22 @@ end
 
 local function onEnter(self)
 	if not self.key then
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		if not GetCursorInfo() then
-			GameTooltip:AddLine("Click to set a key for this cell")
-		else
-			GameTooltip:AddLine("Key must be set on this cell before binding", RED_FONT_COLOR:GetRGB())
+		local cursorInfo = GetCursorInfo()
+		local cursorAction = SpellBinding:GetActionStringFromCursor()
+		if not cursorInfo or cursorAction then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			if not cursorInfo then
+				GameTooltip:AddLine("Click to set a key for this cell")
+			elseif cursorAction then
+				GameTooltip:AddLine("Key must be set on this cell before binding", RED_FONT_COLOR:GetRGB())
+			end
+			GameTooltip:Show()
 		end
-		GameTooltip:Show()
 		return
 	end
 	if not self.action then return end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	GameTooltip:AddLine(GetBindingText(self.key), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	GameTooltip:AddLine(GetBindingText(self.key), HIGHLIGHT_FONT_COLOR:GetRGB())
 	GameTooltip:AddDoubleLine(SpellBinding:GetActionLabel(self.action), SpellBinding:GetSetName(self.set))
 	GameTooltip:Show()
 end

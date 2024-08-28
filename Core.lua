@@ -416,7 +416,7 @@ end
 
 function SpellBinding:ListBindingKeys(action)
 	GameTooltip.hasBinding = nil
-	GameTooltip:AddLine(self:GetActionLabel(action), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+	GameTooltip:AddLine(self:GetActionLabel(action), HIGHLIGHT_FONT_COLOR:GetRGB())
 	for i, set in SpellBinding:IterateActiveSets() do
 		local key1, key2 = self:GetBindings(action, set)
 		addBinding(action, key1, set)
@@ -427,7 +427,7 @@ function SpellBinding:ListBindingKeys(action)
 		addBinding(action, select(i, GetBindingKey(action)))
 	end
 	if not GameTooltip.hasBinding then
-		GameTooltip:AddLine(NOT_BOUND, GRAY_FONT_COLOR.r, GRAY_FONT_COLOR.g, GRAY_FONT_COLOR.b)
+		GameTooltip:AddLine(NOT_BOUND, GRAY_FONT_COLOR:GetRGB())
 	end
 	GameTooltip:Show()
 end
@@ -509,6 +509,17 @@ function SpellBinding:GetActionStringReverse(action)
 				return k
 			end
 		end
+	end
+end
+
+function SpellBinding:GetActionStringFromCursor()
+	local type, data, subType, subData = GetCursorInfo()
+	if type == "item" then
+		return "ITEM item:"..data
+	elseif type == "spell" then
+		return "SPELL "..subData
+	elseif type == "macro" then
+		return "MACRO "..GetMacroInfo(data)
 	end
 end
 

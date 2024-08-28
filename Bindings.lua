@@ -15,15 +15,7 @@ hintNoBindings:SetText("Drag something here to bind it")
 
 local function dropAction(self, button)
 	if button == "LeftButton" or not button then
-		local action
-		local type, data, subType, subData = GetCursorInfo()
-		if type == "item" then
-			action = "ITEM item:"..data
-		elseif type == "spell" then
-			action = "SPELL "..subData
-		elseif type == "macro" then
-			action = "MACRO "..GetMacroInfo(data)
-		end
+		local action = SpellBinding:GetActionStringFromCursor()
 		if not action then
 			return
 		end
