@@ -236,6 +236,8 @@ for i, set in ipairs(sets) do
 end
 
 defaults.global.sets = {
+	"percharprofile",
+	"char",
 	"global",
 }
 
