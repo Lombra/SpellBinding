@@ -1,10 +1,12 @@
-## Interface: 110000
+## Interface: 110002
 ## Title: SpellBinding
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
 ## IconTexture:
 ## Author: Lombra
+
 ## X-Curse-Project-ID: 61571
+## X-Wago-ID: 5NRe0EG3
 
 ## SavedVariables: SpellBindingDB
 ## SavedVariablesPerCharacter: SpellBindingPerCharDB
