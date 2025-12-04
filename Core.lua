@@ -409,7 +409,7 @@ end
 local function addBinding(action, key, set)
 	if not key then return end
 	local color = NORMAL_FONT_COLOR
-	if GetBindingByKey(key) ~= SpellBinding:GetActionString(action) then
+	if C_KeyBindings.GetBindingByKey(key) ~= SpellBinding:GetActionString(action) then
 		color = GRAY_FONT_COLOR
 	end
 	GameTooltip:AddDoubleLine(GetBindingText(key), SpellBinding:GetSetName(set), color.r, color.g, color.b, color.r, color.g, color.b)

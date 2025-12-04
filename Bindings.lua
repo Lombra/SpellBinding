@@ -321,7 +321,7 @@ do
 			local key = SpellBinding:GetBindingKey(object.action)
 			local key1, key2 = SpellBinding:GetBindings(object.action, object.set)
 			local key = key1 or key2
-			local isInactive = key and GetBindingByKey(key) ~= SpellBinding:GetActionString(object.action)
+			local isInactive = key and C_KeyBindings.GetBindingByKey(key) ~= SpellBinding:GetActionString(object.action)
 			local name, texture, type = SpellBinding:GetActionInfo(object.action)
 			button.label:SetFontObject(isInactive and GameFontDisable or GameFontHighlight)
 			button.label:SetText(SpellBinding:GetActionLabel(object.action, isInactive))

@@ -1,4 +1,4 @@
-## Interface: 110002
+## Interface: 110207
 ## Title: SpellBinding
 ## Version: @project-version@
 ## Notes: Powerful keybinding tool.
