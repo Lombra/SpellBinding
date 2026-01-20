@@ -133,6 +133,7 @@ end
 local handlers = {
 	OnKeyDown = onBinding,
 	OnClick = onBinding,
+	OnGamePadButtonDown = onBinding,
 	OnMouseWheel = function(self, delta)
 		if delta > 0 then
 			onBinding(self, "MOUSEWHEELUP")
@@ -150,6 +151,7 @@ end
 function SpellBinding:CreateBindingOverlay(parent)
 	local overlay = self:CreateOverlay(parent, true)
 	overlay:RegisterForClicks("AnyDown")
+	overlay:EnableGamePadButton(true)
 	overlay.SetBindingActionText = setBindingActionText
 	overlay.SetBindingKeyText = setBindingKeyText
 
